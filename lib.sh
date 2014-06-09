@@ -92,7 +92,7 @@ function fipsIsEnabled {
 #   called by rlImport after sourcing the library. The function
 #   returns 0 only when the library is ready to serve.
 
-syncLibraryLoaded() {
+fipsbraryLoaded() {
 
     return 0
 }
