@@ -59,6 +59,8 @@ enabled, 1 if disabled and 2 otherwise (misconfiguration).
 
 =over
 
+=back
+
 =cut
 
 function fipsIsEnabled {
@@ -115,3 +117,4 @@ Ondrej Moris <omoris@redhat.com>
 =back
 
 =cut
+
