@@ -66,7 +66,7 @@ enabled, 1 if disabled and 2 otherwise (misconfiguration).
 function fipsIsEnabled {
     rlLog "Checking FIPS mode status"
     if grep -q 1 /proc/sys/crypto/fips_enabled; then
-	if rlIsRHEL 4 5 6; then
+	if rlIsRHEL 4 5 || rlIsRHEL '<6.5'; then
 	    rlLog "FIPS mode is enabled"
 	    return 0
 	else
