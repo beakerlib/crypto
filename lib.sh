@@ -65,6 +65,13 @@ enabled, 1 if disabled and 2 otherwise (misconfiguration).
 
 function fipsIsEnabled {
     rlLog "Checking FIPS mode status"
+    if rlIsRHEL '>6.5'; then
+        if [[ -n $OPENSSL_ENFORCE_MODULUS_BITS ]]; then
+            rlLog "OpenSSL working in new FIPS mode, 1024 bit RSA disallowed!"
+        else
+            rlLog "OpenSSL working in compatibility FIPS mode, 1024 bit allowed"
+        fi
+    fi
     if grep -q 1 /proc/sys/crypto/fips_enabled; then
 	if rlIsRHEL 4 5 || rlIsRHEL '<6.5'; then
 	    rlLog "FIPS mode is enabled"
