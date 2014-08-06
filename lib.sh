@@ -93,6 +93,44 @@ function fipsIsEnabled {
     return 2
 }
 
+true <<'=cut'
+=pod
+
+=head2 fipsEnable
+
+Function enables FIPS 140 product, please notice that the process includes 
+inevitable restart of the machine. Returns 0 if FIPS mode was correctly enabled,
+1 if not and 2 in case that any error was encountered.
+
+=over
+
+=back
+
+=cut
+
+function fipsEnable {
+    return 2
+}
+
+true <<'=cut'
+=pod
+
+=head2 fipsDisable
+
+Function disables FIPS 140 product, please notice that the process includes 
+inevitable restart of the machine. Returns 0 if FIPS mode was correctly disabled,
+1 if not and 2 in case that any error was encountered.
+
+=over
+
+=back
+
+=cut
+
+function fipsDisable {
+    return 2
+}
+
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #   Initialization & Verification 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
