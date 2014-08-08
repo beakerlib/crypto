@@ -161,7 +161,7 @@ function fipsDisable {
 fipsLibraryLoaded() {
 
     fipsBOOTCONFIG="/boot/grub2/grub.cfg"
-    case $(uname -i); in
+    case "$(uname -i)" in
         i386|x86_64)
             rlCheckRpm "grub2" || fipsBOOTCONFIG="/boot/grub/grub.conf"
             ;;
