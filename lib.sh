@@ -44,6 +44,25 @@ extended.
 =cut
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#   Variables
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+true <<'=cut'
+=pod
+
+=head1 GLOBAL VARIABLES
+
+=over
+
+=item fipsBOOTCONFIG
+
+Location of bootloader configuration file.
+
+=back
+
+=cut
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #   Functions
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -140,6 +159,20 @@ function fipsDisable {
 #   returns 0 only when the library is ready to serve.
 
 fipsLibraryLoaded() {
+
+    fipsBOOTCONFIG="/boot/grub2/grub.cfg"
+    case $(uname -i); in
+        i386|x86_64)
+            rlCheckRpm "grub2" || fipsBOOTCONFING="/boot/grub/grub.conf"
+            ;;
+        ia64)
+            fipsBOOTCONFIG="/etc/elilo.conf"
+            ;;
+        ppc|ppc64)
+            rlCheckRpm "grub2" || fipsBOOTCONFIG="/etc/yaboot.conf"
+            ;;
+    esac	            
+    export $fipsBOOTCONFIG
 
     return 0
 }
