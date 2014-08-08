@@ -163,7 +163,7 @@ fipsLibraryLoaded() {
     fipsBOOTCONFIG="/boot/grub2/grub.cfg"
     case $(uname -i); in
         i386|x86_64)
-            rlCheckRpm "grub2" || fipsBOOTCONFING="/boot/grub/grub.conf"
+            rlCheckRpm "grub2" || fipsBOOTCONFIG="/boot/grub/grub.conf"
             ;;
         ia64)
             fipsBOOTCONFIG="/etc/elilo.conf"
@@ -172,7 +172,7 @@ fipsLibraryLoaded() {
             rlCheckRpm "grub2" || fipsBOOTCONFIG="/etc/yaboot.conf"
             ;;
     esac	            
-    export $fipsBOOTCONFIG
+    rlLog "Setting fipsBOOTCONFIG=$fipsBOOTCONFIG"
 
     return 0
 }
