@@ -169,7 +169,7 @@ fipsLibraryLoaded() {
             fipsBOOTCONFIG="/etc/elilo.conf"
             ;;
         ppc|ppc64)
-            rlCheckRpm "grub2" || fipsBOOTCONFIG="/etc/yaboot.conf"
+            rlCheckRpm "grub2" || fipsBOOTCONFIG="/boot/etc/yaboot.conf"
             ;;
     esac	            
     rlLog "Setting fipsBOOTCONFIG=$fipsBOOTCONFIG"
