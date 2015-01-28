@@ -92,22 +92,22 @@ function fipsIsEnabled {
         fi
     fi
     if grep -q 1 /proc/sys/crypto/fips_enabled; then
-	if rlIsRHEL 4 5 || rlIsRHEL '<6.5'; then
-	    rlLog "FIPS mode is enabled"
-	    return 0
-	else
-	    if [ -e /etc/system-fips ]; then
-		rlLog "FIPS mode is enabled"
-		return 0
-	    else
-		rlLog "FIPS mode is misconfigured"
-		rlLog "  (kernel flag fips=1 set, but /etc/system-fips is missing)"
-		return 2
-	    fi
-	fi
+        if rlIsRHEL 4 5 || rlIsRHEL '<6.5'; then
+            rlLog "FIPS mode is enabled"
+            return 0
+        else
+            if [ -e /etc/system-fips ]; then
+                rlLog "FIPS mode is enabled"
+                return 0
+            else
+                rlLog "FIPS mode is misconfigured"
+                rlLog "  (kernel flag fips=1 set, but /etc/system-fips is missing)"
+                return 2
+            fi
+        fi
     else
-	rlLog "FIPS mode is disabled"
-	return 1
+        rlLog "FIPS mode is disabled"
+        return 1
     fi
     return 2
 }
@@ -171,7 +171,7 @@ fipsLibraryLoaded() {
         ppc|ppc64)
             rlCheckRpm "grub2" || fipsBOOTCONFIG="/boot/etc/yaboot.conf"
             ;;
-    esac	            
+    esac            
     rlLog "Setting fipsBOOTCONFIG=$fipsBOOTCONFIG"
 
     return 0
