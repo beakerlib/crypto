@@ -106,8 +106,14 @@ function fipsIsEnabled {
             fi
         fi
     else
-        rlLog "FIPS mode is disabled"
-        return 1
+        if [ -e /etc/system-fips ]; then
+            rlLog "FIPS mode is misconfigured"
+            rlLog "  (kernel flag fips=0 set, but /etc/system-fips is present)"
+            return 2
+        else
+            rlLog "FIPS mode is disabled"
+            return 1
+        fi
     fi
     return 2
 }
