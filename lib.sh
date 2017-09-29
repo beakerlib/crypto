@@ -282,9 +282,9 @@ function fipsSetState {
     
     local new_state=$1
 
-    case $new_state; in
-        0) 
-            
+    case "$new_state" in
+        0)
+           ;; 
         *)
             rlLogError "Unexpected state (\"$new_state\" given, 0-3 expected)"
     esac
