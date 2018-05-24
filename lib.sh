@@ -141,7 +141,6 @@ function fipsIsSupported {
     local ARCH=`uname -i`
     local VER=`cat /etc/redhat-release | sed -n 's/.*\([0-9]\.[0-9]*\).*/\1/p'`
     local KERNEL=`uname -r | cut -d '.' -f 1`
-    local ALT=0
     local PASS=0
 
     rlPhaseStartSetup "Checking FIPS support"
