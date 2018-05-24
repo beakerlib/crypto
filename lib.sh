@@ -125,6 +125,61 @@ function fipsIsEnabled {
 true <<'=cut'
 =pod
 
+=head2 fipsIsSupported
+
+Function verifies whether the FIPS 140 product is supported on the current platform.
+Returns 0 if FIPS mode is supported, 1 if not.
+
+=over
+
+=back
+
+=cut
+
+function fipsIsSupported {
+
+    local ARCH=`uname -i`
+    local VER=`cat /etc/redhat-release | sed -n 's/.*\([0-9]\.[0-9]*\).*/\1/p'`
+    local KERNEL=`uname -r | cut -d '.' -f 1`
+    local ALT=0
+    local PASS=0
+
+    rlPhaseStartSetup "Checking FIPS support"
+
+        if [ `rlGetDistroRelease` -eq "7" ] && [ "$KERNEL" -eq "4" ]; then
+            rlLog "Product: RHEL-ALT-$VER"
+            PASS=1
+        else
+            rlLog "Product: RHEL-$VER"
+        fi
+
+        rlLog "Architecture: $ARCH"
+
+        # FIPS is not allowed on s390x on RHEL <7.1.
+        if [[ $ARCH =~ s390 ]] && rlIsRHEL '<7.1'; then
+            PASS=1
+        fi
+
+        # FIPS is not allowed on AArch64.
+        if [[ $ARCH =~ aarch ]]; then
+            PASS=1
+        fi
+
+        if [ "$PASS" -eq "1" ]; then
+            rlLog "FIPS mode is not supported"
+            rlLog "See https://wiki.test.redhat.com/BaseOs/Security/FIPS#SupportedPlatforms"
+            return 1
+        fi
+
+        rlLog "FIPS mode is supported"
+        return 0
+
+    rlPhaseEnd
+}
+
+true <<'=cut'
+=pod
+
 =head2 fipsEnable
 
 Function enables FIPS 140 product, please notice that the process includes 
@@ -142,7 +197,6 @@ function fipsEnable {
     local ARCH=`uname -i`
 
     rlPhaseStartSetup "Enable FIPS mode"
-
     
     # FIPS requires SSE2 instruction set for OpenSSL.
     if  echo $ARCH | grep "i[36]86" && ! grep "sse2" /proc/cpuinfo; then
@@ -150,12 +204,11 @@ function fipsEnable {
         return 1
     fi
     
-    # FIPS is not allowed on s390x on RHEL <7.1.
-    if [[ $ARCH =~ s390 ]] && rlIsRHEL '<7.1'; then
-        rlLogError "FIPS on s390 on RHEL <7.1 is not supported"
+    # FIPS must be supported before its enabling.
+    if ! rlRun "fipsIsSupported"; then
         return 1
     fi
-   
+
     # Verify the FIPS state.
     if grep "1" "/proc/sys/crypto/fips_enabled"; then
         if rlIsRHEL ">=6" && !rlCheckRpm "dracut-fips"; then

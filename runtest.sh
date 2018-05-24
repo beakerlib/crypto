@@ -41,7 +41,11 @@ rlJournalStart
     if [[ "$PHASE" =~ "Test" ]]; then
         rlPhaseStartTest
           rlRun "fipsIsEnabled" 0	     
-       rlPhaseEnd
+        rlPhaseEnd
+
+        rlPhaseStartTest
+          rlRun "fipsIsSupported" 0        
+        rlPhaseEnd
     fi
 
     rlPhaseStartCleanup
