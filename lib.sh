@@ -143,37 +143,34 @@ function fipsIsSupported {
     local KERNEL=`uname -r | cut -d '.' -f 1`
     local PASS=0
 
-    rlPhaseStartSetup "Checking FIPS support"
+    # FIPS is not allowed on RHEL-ALT-7.
+    if [ `rlGetDistroRelease` -eq "7" ] && [ "$KERNEL" -eq "4" ]; then
+        rlLog "Product: RHEL-ALT-$VER"
+        PASS=1
+    else
+        rlLog "Product: RHEL-$VER"
+    fi
 
-        if [ `rlGetDistroRelease` -eq "7" ] && [ "$KERNEL" -eq "4" ]; then
-            rlLog "Product: RHEL-ALT-$VER"
-            PASS=1
-        else
-            rlLog "Product: RHEL-$VER"
-        fi
+    rlLog "Architecture: $ARCH"
 
-        rlLog "Architecture: $ARCH"
+    # FIPS is not allowed on s390x on RHEL <7.1.
+    if [[ $ARCH =~ s390 ]] && rlIsRHEL '<7.1'; then
+        PASS=1
+    fi
 
-        # FIPS is not allowed on s390x on RHEL <7.1.
-        if [[ $ARCH =~ s390 ]] && rlIsRHEL '<7.1'; then
-            PASS=1
-        fi
+    # FIPS is not allowed on AArch64.
+    if [[ $ARCH =~ aarch ]]; then
+        PASS=1
+    fi
 
-        # FIPS is not allowed on AArch64.
-        if [[ $ARCH =~ aarch ]]; then
-            PASS=1
-        fi
+    if [ "$PASS" -eq "1" ]; then
+        rlLog "FIPS mode is not supported"
+        rlLog "See https://wiki.test.redhat.com/BaseOs/Security/FIPS#SupportedPlatforms"
+        return 1
+    fi
 
-        if [ "$PASS" -eq "1" ]; then
-            rlLog "FIPS mode is not supported"
-            rlLog "See https://wiki.test.redhat.com/BaseOs/Security/FIPS#SupportedPlatforms"
-            return 1
-        fi
-
-        rlLog "FIPS mode is supported"
-        return 0
-
-    rlPhaseEnd
+    rlLog "FIPS mode is supported"
+    return 0
 }
 
 true <<'=cut'

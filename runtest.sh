@@ -44,7 +44,7 @@ rlJournalStart
         rlPhaseEnd
 
         rlPhaseStartTest
-          rlRun "fipsIsSupported" 0        
+          rlRun "fipsIsSupported" 0,1
         rlPhaseEnd
     fi
 
