@@ -158,8 +158,8 @@ function fipsIsSupported {
         PASS=1
     fi
 
-    # FIPS is not allowed on AArch64.
-    if [[ $ARCH =~ aarch ]]; then
+    # FIPS is allowed on AArch64 on RHEL-8 only.
+    if [[ $ARCH =~ aarch ]] && ! rlIsRHEL '8'; then
         PASS=1
     fi
 
