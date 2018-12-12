@@ -138,38 +138,40 @@ Returns 0 if FIPS mode is supported, 1 if not.
 
 function fipsIsSupported {
 
-    local ARCH=`uname -i`
-    local VER=`cat /etc/redhat-release | sed -n 's/.*\([0-9]\.[0-9]*\).*/\1/p'`
-    local KERNEL=`uname -r | cut -d '.' -f 1`
-    local PASS=0
+    local arch=$(uname -i)
+    local rhel=$(cat /etc/redhat-release | sed -n 's/.*\([0-9]\.[0-9]*\).*/\1/p')
+    local kernel=$(uname -r)
+    local supported=1
 
-    # FIPS is not allowed on RHEL-ALT-7.
-    if [ `rlGetDistroRelease` -eq "7" ] && [ "$KERNEL" -eq "4" ]; then
-        rlLog "Product: RHEL-ALT-$VER"
-        PASS=1
+    # Check RHEL version.
+    if [[ $rhel =~ 7\. ]] && [[ $kernel =~ 4\. ]]; then
+        rlLog "Product: RHEL-ALT-7"
+        rlLog "FIPS 140 is not supported in RHEL-ALT-7!" 
+        supported=0
     else
-        rlLog "Product: RHEL-$VER"
+        rlLog "Product: RHEL-${rhel}"
     fi
 
-    rlLog "Architecture: $ARCH"
-
-    # FIPS is not allowed on s390x on RHEL <7.1.
-    if [[ $ARCH =~ s390 ]] && rlIsRHEL '<7.1'; then
-        PASS=1
+    # Check HW architecture.
+    rlLog "Architecture: $arch"
+    if [[ $arch =~ i[36]86 ]] && ! grep -q "sse2" /proc/cpuinfo; then
+        rlLog "FIPS 140 requires SSE2 instruction set for OpenSSL on Intel!"
+        supported=0
+    elif [[ $arch =~ s390 ]] && rlIsRHEL '<7.1'; then
+        rlLog "FIPS 140 is not supported on s390x in RHEL older than 7.1!"
+        supported=0
+    elif [[ $ARCH =~ aarch ]] && ! rlIsRHEL '8'; then
+        rlLog "FIPS 140 is not supported on aarch64 in RHEL older than 8.0!"
+        supported=0
     fi
 
-    # FIPS is allowed on AArch64 on RHEL-8 only.
-    if [[ $ARCH =~ aarch ]] && ! rlIsRHEL '8'; then
-        PASS=1
-    fi
-
-    if [ "$PASS" -eq "1" ]; then
-        rlLog "FIPS mode is not supported"
+    # Report,
+    if [ "$supported" == "0" ]; then
+        rlLog "FIPS 140 mode is not supported"
         rlLog "See https://wiki.test.redhat.com/BaseOs/Security/FIPS#SupportedPlatforms"
         return 1
     fi
-
-    rlLog "FIPS mode is supported"
+    rlLog "FIPS 140 mode is supported"
     return 0
 }
 
@@ -187,144 +189,207 @@ inevitable restart of the machine. Returns 0 if FIPS mode was correctly enabled,
 =back
 
 =cut
-
 function fipsEnable {
 
-    local ARCH=`uname -i`
-
-    rlPhaseStartSetup "Enable FIPS mode"
+    # Check if FIPS 140 mode is supported on a machine.
+    rlRun "fipsIsSupported" || return 1
     
-    # FIPS requires SSE2 instruction set for OpenSSL.
-    if  echo $ARCH | grep "i[36]86" && ! grep "sse2" /proc/cpuinfo; then
-        rlLogError "FIPS requires SSE2 instruction set for OpenSSL";
-        return 1
+    # Check if FIPS 140 mode is enabled already.
+    if fipsIsEnabled; then
+        rlLog "FIPS 140 mode is already enabled!"
+        return 0
     fi
-    
-    # FIPS must be supported before its enabling.
-    if ! rlRun "fipsIsSupported"; then
-        return 1
-    fi
-
-    # Verify the FIPS state.
-    if grep "1" "/proc/sys/crypto/fips_enabled"; then
-        if rlIsRHEL ">=6" && !rlCheckRpm "dracut-fips"; then
-            continue;
-        fi
-        rlLog "FIPS is already enabled!"
-    fi
-    
-    # Backup a message of the day.
-    rlRun "cp -f /etc/motd /var/tmp/motd.backup" 0
     
     # Turn-off prelink (if prelink is installed).
-    if rlCheckRpm "prelink"; then
-        # sometimes prelink complains about files being changed during
-        # unlinking so let's run a simple yum command to make sure yum
-        # is not running in the background ("somehow") and wait for it
-        # to finish (yum automatically uses lockfiles for that)
-        if ! rlIsRHEL '<5'; then
-            rlRun "yum list --showduplicates prelink"
-        fi
-        
-        # make sure prelink job is not running now (e.g. started by cron)
-        rlRun "killall prelink" 0,1
-        rlRun "sed -i 's/PRELINKING=.*/PRELINKING=no/g' /etc/sysconfig/prelink" 0
-        rlRun "sync" 0 "Commit change to disk"
-        rlRun "killall prelink" 0,1
-        rlRun "prelink -u -a" 0
-    fi
-    
-    # Enforce 2048 bit limit on RSA and DSA generation (RHBZ#1039105)
-    if ! rlIsRHEL '<6.5' 5 4; then
-        if ! grep 'OPENSSL_ENFORCE_MODULUS_BITS' /etc/environment; then
-            rlRun "echo 'OPENSSL_ENFORCE_MODULUS_BITS=true' >> /etc/environment"
-        fi
-        rlRun "echo 'export OPENSSL_ENFORCE_MODULUS_BITS=true' > /etc/profile.d/openssl.sh"
-        rlRun "chmod +x /etc/profile.d/openssl.sh"
-        rlRun "echo 'setenv OPENSSL_ENFORCE_MODULUS_BITS true' > /etc/profile.d/openssl.csh"
-        rlRun "chmod +x /etc/profile.d/openssl.csh"
-        # beaker tests don't use profile or environment so we have to set
-        # their environment separately
-        BEAKERLIB=${BEAKERLIB:-"/usr/share/beakerlib"}
-        rlRun "mkdir -p '${BEAKERLIB}/plugins/'" 0-255
-        rlRun "echo 'export OPENSSL_ENFORCE_MODULUS_BITS=true' > '${BEAKERLIB}/plugins/openssl-fips-override.sh'"
-        rlRun "chmod +x '${BEAKERLIB}/plugins/openssl-fips-override.sh'"
-    fi
-    
-    if ! rlIsRHEL 5; then
-        
-        # Install dracut and dracut-fips on RHEL7 and RHEL6
-        rlCheckRpm "dracut" || rlRun "yum --enablerepo='*' install dracut -y" 0
-        rlCheckRpm "dracut-fips" || rlRun "yum --enablerepo='*' install dracut-fips -y" 0
-        if grep -sE '\<aes\>' /proc/cpuinfo && grep -sE '\<GenuineIntel\>' /proc/cpuinfo; then
-            rlLogInfo "AES instruction set on Intel CPU detected"
-            rlCheckRpm "dracut-fips-aesni" || \
-                rlRun "yum --enablerepo='*' install -y dracut-fips-aesni" 0 \
-                "Installing dracut-fips-aesni"
-                
-        else
-            rlLogInfo "CPU is a non-Intel or lacking AES instruction set"
-            rlCheckRpm "dracut-fips-aesni" && \
-                rlRun "yum remove -y dracut-fips-aesni" 0 "Removing dracut-fips-aesni"
-        fi
+    _disablePrelink || return 1
 
-        # Re-generate initramfs to include FIPS integrity checks.
-        rlLogInfo "Regenerating initramfs"
-        rlRun "dracut -v -f" 0
-    fi
+    # Enforce 2048 bit limit on RSA and DSA generation (RHBZ#1039105).
+    _enforceModulusBits || return 1
+   
+    # Enable FIPS 140 mode.
+    _enableFIPS || return 1
+
+    # Modify bootloader.
+    _modifyBootloader || return 1
     
-    
-    return 2
+    # Success.
+    return 0
 }
 
+function _disablePrelink {
+    if rlCheckRpm "prelink"; then
 
-function _modifyBootLoader {
+        # Sometimes prelink complains about files being changed during
+        # unlinking so let's run a simple yum command to make sure yum
+        # is not running in the background ("somehow") and wait for it
+        # to finish (yum automatically uses lockfiles for that).
+        if ! rlIsRHEL '<5'; then
+            rlRun "yum list --showduplicates prelink" 0 "Wait for yum"
+        fi
+        
+        # Make sure prelink job is not running now (e.g. started by cron).
+        rlRun "kill $(pgrep prelink)" 0,1 "Kill all prelinks"
+        rlRun "sed -i 's/PRELINKING=.*/PRELINKING=no/g' /etc/sysconfig/prelink" 0 "Configure system not to use prelink"
+        rlRun "sync" 0 "Commit change to disk"
+        rlRun "kill $(pgrep prelink)" 0,1 "Kill all prelinks (again)"
+        rlRun "prelink -u -a" 0 "Un-prelink the system"
+    fi
 
-    local ARCH=`uname -i`
+    return 0
+}
 
-    # Fine-tune SED options
-    if rlIsRHEL 5; then
-        SED_OPTIONS='-c'
-    else
-        SED_OPTIONS='--follow-symlinks'
+function _enforceModulusBits {
+    if ! rlIsRHEL '<6.5' 5 4; then
+        if ! grep 'OPENSSL_ENFORCE_MODULUS_BITS' /etc/environment; then
+            rlRun "echo 'OPENSSL_ENFORCE_MODULUS_BITS=true' >> /etc/environment" 0 "Enable OPENSSL_ENFORCE_MODULUS_BITS (env)"
+        fi
+        rlRun "echo 'export OPENSSL_ENFORCE_MODULUS_BITS=true' > /etc/profile.d/openssl.sh && \
+               chmod +x /etc/profile.d/openssl.sh && \
+               echo 'setenv OPENSSL_ENFORCE_MODULUS_BITS true' > /etc/profile.d/openssl.csh && \
+               chmod +x /etc/profile.d/openssl.csh" 0 "Enable OPENSSL_ENFORCE_MODULUS_BITS (profiles)"
+        
+        # Beaker tests don't use profile or environment so we have to set
+        # their environment separately.
+        BEAKERLIB=${BEAKERLIB:-"/usr/share/beakerlib"}
+        rlRun "mkdir -p ${BEAKERLIB}/plugins/ && \
+               echo 'export OPENSSL_ENFORCE_MODULUS_BITS=true' > ${BEAKERLIB}/plugins/openssl-fips-override.sh && \
+               chmod +x ${BEAKERLIB}/plugins/openssl-fips-override.sh" 0 "Enable OPENSSL_ENFORCE_MODULUS_BITS (beaker)"
+    fi
+
+    return 0
+}
+
+function _enableFIPS {
+
+    if rlIsRHEL ">=8"; then
+        
+        # Use crypto-policies to set-up FIPS 140 mode.
+        rlRun "fips-mode-setup --enable" 0 "Enable FIPS 140 mode"
+       
+    elif rlIsRHEL ">=6"; then
+    
+        # Install dracut and dracut-fips on RHEL7 and RHEL6.
+        rlCheckRpm "dracut" || rlRun "yum --enablerepo='*' install dracut -y" 0 "Install dracut"
+        rlCheckRpm "dracut-fips" || rlRun "yum --enablerepo='*' install dracut-fips -y" 0 "Install dracut-fips"
+
+        if grep -qE '\<aes\>' /proc/cpuinfo && \
+           grep -qE '\<GenuineIntel\>' /proc/cpuinfo; then
+
+            rlLogInfo "AES instruction set on Intel CPU detected"
+
+            if [ "$IGNORE_AESNI" == "1" ]; then
+                rlLogInfo "Installation of dracut-fips-aesni skipped"
+            else
+                rlCheckRpm "dracut-fips-aesni" || \
+                    rlRun "yum --enablerepo='*' install -y dracut-fips-aesni" 0 "Install dracut-fips-aesni"
+            fi
+        else
+            rlLogInfo "Intel AES instruction set not detected"
+            rlCheckRpm "dracut-fips-aesni" && rlRun "yum remove -y dracut-fips-aesni" 0 "Remove dracut-fips-aesni"
+        fi
+          
+        # Re-generate initramfs to include FIPS dracut modules.
+        rlRun "dracut -v -f" 0 "Regenerate initramfs"
+    fi
+
+    return 0
+}
+
+function _modifyBootloader {
+
+    # On RHEL-8, fips-mode-setup binary modifies bootloader.
+    rlIsRHEL "<8" && return 0
+
+    local arch=$(uname -i)
+    local sed_options="--follow-symlinks"
+
+    rlIsRHEL 5 && sed_options="-c"
+    
+    # Get block device name.
+    local boot_dev=$(df -P /boot/ | tail -1 | awk '{print $1}')
+    if [ -z "$boot_dev" ]; then
+        rlFail "Can't detect /boot device name, cannot continue!"
+        rlLog "df /boot/ | tail -1" 
+        return 1
     fi
     
-    # Remove any FIPS-related kernel parameters first
-    sed -i $SED_OPTIONS 's/ fips=[01] boot=$fipsBOOTDEV/ /g' $fipsBOOTCONF
-    sed -i $SED_OPTIONS 's/ fips=[01] boot=$fipsBOOTDEV/ /g' $fipsBOOTCONF
+    if [[ "${USE_UUID:-yes}" != "no" && "${USE_UUID:-1}" != "0" ]]; then
 
-    case $ARCH in
+        # Get block device UUID, see BZ 1014527 if UUIDs don't work.
+        local old_boot_dev=$boot_dev
+        boot_dev="UUID=$(blkid -s UUID -o value $old_boot_dev)"
+        if [ "$boot_dev" == "UUID=" ]; then
+            rlFail "Cannnot detect /boot device UUID, cannot continue!"
+            rlLog "blkid -s UUID -o value $old_boot_dev" 
+            return 1
+        fi
+    fi
+
+    local bootconf=""
+    case $arch in
         i386|x86_64)
-            if rlCheckRpm "grub2" || rlCheckRpm "grub2-efi"; then
-                rlRun "sed -i $SED_OPTIONS 's|\(vmlinuz.*\)|\1 fips=1 boot=$BOOT_DEV|g' $BOOTCONF"
+
+            # Since RHEL-7.4-20170421.1, grub2-efi packages were renamed
+            # to grub2-efi-ia32 and grub2-efi-x64
+            if rpm -qa | grep "grub2-efi"; then
+                bootconf="/boot/efi/EFI/redhat/grub.cfg"
+                rlRun "sed -i $sed_options 's/ fips=[01] boot=$boot_dev/ /g' $bootconf" 0 \
+                    "Reset GRUB fips configuration"
+                rlRun "sed -i $sed_options 's|\(vmlinuz.*\)|\1 fips=1 boot=$boot_dev|g' $bootconf" 0 \
+                    "Setup GRUB fips configuration"
+            elif rpm -qa | grep "grub2"; then
+                bootconf="/boot/grub2/grub.cfg"
+                rlRun "sed -i $sed_options 's/ fips=[01] boot=$boot_dev/ /g' $bootconf" 0 \
+                    "Reset GRUB fips configuration"
+                rlRun "sed -i $sed_options 's|\(vmlinuz.*\)|\1 fips=1 boot=$boot_dev|g' $bootconf" \
+                    "Setup GRUB fips configuration"
+            elif mount | grep -i efi; then
+                bootconf="/boot/efi/EFI/redhat/grub.conf"
+                rlRun "sed -i $sed_options 's/ fips=[01] boot=$boot_dev/ /g' $bootconf" 0 \
+                    "Reset GRUB fips configuration"
+                rlRun "sed -i $sed_options 's|\(vmlinuz.*\)|\1 fips=1 boot=$boot_dev|g' $bootconf" \
+                    "Setup GRUB fips configuration"
             else
-                rlRun "sed -i $SED_OPTIONS 's|\(kernel.*\)|\1 fips=1 boot=$BOOT_DEV|g' $BOOTCONF" 0
+                bootconf="/boot/grub/grub.conf"
+                rlRun "sed -i $sed_options 's/ fips=[01] boot=$boot_dev/ /g' $bootconf" 0 \
+                    "Reset GRUB fips configuration"
+                rlRun "sed -i $sed_options 's|\(kernel.*\)|\1 fips=1 boot=$boot_dev|g' $bootconf" 0 \
+                    "Setup GRUB fips configuration"
             fi
             ;;
         ia64)
-            if grep -q 'append' $BOOTCONF; then
-                rlRun "sed -i $SED_OPTIONS 's|\(append=.*\)\"|\1 fips=1 boot=$BOOT_DEV\"|g' $BOOTCONF" 0
+            bootconf="/etc/elilo.conf"
+            rlRun "sed -i $sed_options 's/fips=[01] boot=$boot_dev/ /g' $bootconf" 0
+            if grep -q 'append' $bootconf; then
+                rlRun "sed -i $sed_options 's|\(append=.*\)\"|\1 fips=1 boot=$boot_dev\"|g' $bootconf" 0
             else
-                rlRun "sed -i $SED_OPTIONS 's|\(initrd.*\)|\1\n\tappend=\"fips=1 boot=$BOOT_DEV\"|g' $BOOTCONF" 0
+                rlRun "sed -i $sed_options 's|\(initrd.*\)|\1\n\tappend=\"fips=1 boot=$boot_dev\"|g' $bootconf" 0
             fi
             ;;
         ppc|ppc64|ppc64le)
-            if rlCheckRpm "grub2" || rlCheckRpm "grub2-efi"; then
-                rlRun "sed -i $SED_OPTIONS 's|\(vmlinuz.*\)|\1 fips=1 boot=$BOOT_DEV|g' $BOOTCONF"
+            if rpm -qa | grep "grub2-efi"; then
+                bootconf="/boot/efi/EFI/redhat/grub.cfg"
+                rlRun "sed -i $sed_options 's/ fips=[01] boot=$boot_dev/ /g' $bootconf" 0
+                rlRun "sed -i $sed_options 's|\(vmlinuz.*\)|\1 fips=1 boot=$boot_dev|g' $bootconf"
+            elif rpm -qa | grep "grub2"; then
+                bootconf="/boot/grub2/grub.cfg"
+                rlRun "sed -i $sed_options 's/ fips=[01] boot=$boot_dev/ /g' $bootconf" 0
+                rlRun "sed -i $sed_options 's|\(vmlinuz.*\)|\1 fips=1 boot=$boot_dev|g' $bootconf"
             else
-                if grep -q 'append' $BOOTCONF; then
-                    rlRun "sed -i $SED_OPTIONS 's|\(append=.*\)\"|\1 fips=1 boot=$BOOT_DEV\"|g' $BOOTCONF" 0
-                else
-                    rlRun "sed -i $SED_OPTIONS 's|\(root=.*\)|\1 append=\"\"|g' $BOOTCONF"
-                fi
+                bootconf="/etc/yaboot.conf"
+                grep -q 'append' $bootconf || \
+                    rlRun "sed -i $sed_options 's|\(root=.*\)|\1 append=\"\"|g' $bootconf"
+                rlRun "sed -i $sed_options 's/fips=[01] boot=$boot_dev/ /g' $bootconf" 0
+                rlRun "sed -i $sed_options 's|\(append=.*\)\"|\1 fips=1 boot=$boot_dev\"|g' $bootconf" 0
             fi
             ;;
         s390x)
-            rlRun "sed -i $SED_OPTIONS 's/parameters=\"\(.*\)\"/parameters=\"\1 fips=1 boot=$BOOT_DEV\"/g' $BOOTCONF" 0
-	    rlRun "zipl" 0
-            ;;
-        
-    esac	    
+            bootconf="/etc/zipl.conf"
+            rlRun "sed -i $sed_options 's/ fips=[01] boot=$boot_dev/ /g' $bootconf" 0
+            rlRun "sed -i $sed_options 's/parameters=\"\(.*\)\"/parameters=\"\1 fips=1 boot=$boot_dev\"/g' $bootconf" 0
+            rlRun "zipl" 0
+            ;;        
+    esac
 }
 
 function fipsSetState {
@@ -370,45 +435,45 @@ function fipsDisable {
 
 fipsLibraryLoaded() {
 
-    fipsBOOTDEV=`df -P /boot/ | tail -1 | awk '{print $1}'`
-    if [ -z "$fipsBOOTDEV" ]; then
-        rlLogError "Unable to detect /boot device name!"
+    # fipsBOOTDEV=`df -P /boot/ | tail -1 | awk '{print $1}'`
+    # if [ -z "$fipsBOOTDEV" ]; then
+    #     rlLogError "Unable to detect /boot device name!"
 
-        # debug
-        df /boot/
+    #     # debug
+    #     df /boot/
 
-        return 1
-    fi
+    #     return 1
+    # fi
 
-    if [[ "${USE_UUID:-yes}" != "no" && "${USE_UUID:-1}" != "0" ]]; then
+    # if [[ "${USE_UUID:-yes}" != "no" && "${USE_UUID:-1}" != "0" ]]; then
         
-        UUID=$(blkid -s UUID -o value $fipsBOOTDEV)
-        if [ -z "$UUID" ]; then
-            rlLogError "Unable to detect boot device UUID!"
+    #     UUID=$(blkid -s UUID -o value $fipsBOOTDEV)
+    #     if [ -z "$UUID" ]; then
+    #         rlLogError "Unable to detect boot device UUID!"
                 
-            # debug
-            df /boot
-            blkid -s UUID -o value $fipsBOOTDEV
+    #         # debug
+    #         df /boot
+    #         blkid -s UUID -o value $fipsBOOTDEV
             
-            return 1
-        fi
+    #         return 1
+    #     fi
         
-        fipsBOOTDEV="UUID=$UUID"               
-    fi
+    #     fipsBOOTDEV="UUID=$UUID"               
+    # fi
     
-    fipsBOOTCONFIG="/boot/grub2/grub.cfg"
-    case "$(uname -i)" in
-        i386|x86_64)
-            rlCheckRpm "grub2" || fipsBOOTCONFIG="/boot/grub/grub.conf"
-            ;;
-        ia64)
-            fipsBOOTCONFIG="/etc/elilo.conf"
-            ;;
-        ppc|ppc64)
-            rlCheckRpm "grub2" || fipsBOOTCONFIG="/boot/etc/yaboot.conf"
-            ;;
-    esac            
-    rlLog "Setting fipsBOOTCONFIG=$fipsBOOTCONFIG"
+    # fipsBOOTCONFIG="/boot/grub2/grub.cfg"
+    # case "$(uname -i)" in
+    #     i386|x86_64)
+    #         rlCheckRpm "grub2" || fipsBOOTCONFIG="/boot/grub/grub.conf"
+    #         ;;
+    #     ia64)
+    #         fipsBOOTCONFIG="/etc/elilo.conf"
+    #         ;;
+    #     ppc|ppc64)
+    #         rlCheckRpm "grub2" || fipsBOOTCONFIG="/boot/etc/yaboot.conf"
+    #         ;;
+    # esac            
+    # rlLog "Setting fipsBOOTCONFIG=$fipsBOOTCONFIG"
 
     return 0
 }
