@@ -32,7 +32,7 @@
 
 rlJournalStart
     rlPhaseStartSetup
-        rlRun "rlImport distribution/fips"
+        rlRun "rlImport distribution/fips" || rlDie
     rlPhaseEnd
 
     if ! [ -e /var/tmp/fips-reboot ]; then
@@ -45,7 +45,7 @@ rlJournalStart
             rlRun "fipsEnable" 0
             
             # Before completing setup by restart, system is misconfigured.
-            rlRun "fipsIsEnabled" 2
+            rlIsRHEL ">6.5" && rlRun "fipsIsEnabled" 2
 
             rlRun "touch /var/tmp/fips-reboot" 0
             
