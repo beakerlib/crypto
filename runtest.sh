@@ -3,12 +3,12 @@
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #
 #   runtest.sh of /distribution/Library/fips
-#   Description: A set of helpers for FIPS related testing.
+#   Description: A set of helpers for FIPS 140 testing.
 #   Author: Ondrej Moris <omoris@redhat.com>
 #
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #
-#   Copyright (c) 2012 Red Hat, Inc. All rights reserved.
+#   Copyright (c) 2018 Red Hat, Inc. All rights reserved.
 #
 #   This copyrighted material is made available to anyone wishing
 #   to use, modify, copy, or redistribute it subject to the terms
@@ -30,24 +30,39 @@
 . /usr/bin/rhts-environment.sh || exit 1
 . /usr/share/beakerlib/beakerlib.sh || exit 1
 
-PHASE=${PHASE:-Test}
-
 rlJournalStart
     rlPhaseStartSetup
         rlRun "rlImport distribution/fips"
     rlPhaseEnd
 
-    # Self test
-    if [[ "$PHASE" =~ "Test" ]]; then
+    if ! [ -e /var/tmp/fips-reboot ]; then
         rlPhaseStartTest
-          rlRun "fipsIsEnabled" 0,1
+
+            # Initially, FIPS mode is disabled.
+            rlRun "fipsIsEnabled" 1
+
+            # Enable it.
+            rlRun "fipsEnable" 0
+            
+            # Before completing setup by restart, system is misconfigured.
+            rlRun "fipsIsEnabled" 2
+
+            rlRun "touch /var/tmp/fips-reboot" 0
+            
         rlPhaseEnd
 
+        rhts-reboot
+    else
         rlPhaseStartTest
-          rlRun "fipsIsSupported" 0,1
+
+            # Now, FIPS mode is enabled.
+            rlRun "fipsIsEnabled" 0
+
+            rlRun "rm -f /var/tmp/fips-reboot" 0
+
         rlPhaseEnd
     fi
-
+    
     rlPhaseStartCleanup
     rlPhaseEnd
 rlJournalPrintText

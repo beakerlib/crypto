@@ -1,12 +1,12 @@
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #
 #   Makefile of /distribution/Library/fips
-#   Description: A set of helpers for FIPS related testing.
+#   Description: A set of helpers for FIPS 140 testing.
 #   Author: Ondrej Moris <omoris@redhat.com>
 #
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #
-#   Copyright (c) 2012 Red Hat, Inc. All rights reserved.
+#   Copyright (c) 2018 Red Hat, Inc. All rights reserved.
 #
 #   This copyrighted material is made available to anyone wishing
 #   to use, modify, copy, or redistribute it subject to the terms
@@ -50,7 +50,7 @@ $(METADATA): Makefile
 	@echo "Name:            $(TEST)" >> $(METADATA)
 	@echo "TestVersion:     $(TESTVERSION)" >> $(METADATA)
 	@echo "Path:            $(TEST_DIR)" >> $(METADATA)
-	@echo "Description:     A set of helpers for FIPS related testing" >> $(METADATA)
+	@echo "Description:     A set of helpers for FIPS 140 testing" >> $(METADATA)
 	@echo "Type:            Library" >> $(METADATA)
 	@echo "Requires:        coreutils" >> $(METADATA)
 	@echo "TestTime:        30m" >> $(METADATA)
