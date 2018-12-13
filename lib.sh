@@ -82,10 +82,10 @@ function fipsIsEnabled {
     local userspace_fips=$(test -e /etc/system-fips && echo 1 || echo 0)
 
     # Check crypto policy.
-    local cryptopolicy_fips=$(rlIsRHEL ">=8" && update-crypto-policies --show || echo "")
+    local cryptopolicy_fips=$(rlIsRHEL ">=8" && update-crypto-policies --show)
 
     # Check crypto policy.
-    local check_fips=$(rlIsRHEL ">=8" && fips-mode-setup --check || echo "")
+    local check_fips=$(rlIsRHEL ">=8" && fips-mode-setup --check | tail -1)
 
     # Check FIPS mode.
     if rlIsRHEL ">=5" && rlIsRHEL "<6.4"; then
@@ -94,24 +94,25 @@ function fipsIsEnabled {
         if [ "$kernelspace_fips" == "1" ]; then
             rlLog "FIPS mode is enabled"
             return 0
+        else
+            rlLog "FIPS mode is disabled"
+            return 1
         fi
-        
+
     elif rlIsRHEL ">=6.5" && rlIsRHEL "<8"; then
 
         # Since RHEL-6.5 and before RHEL-8.0, both userspace and
         # kernelspace need to be in FIPS mode.
         if [ "$kernelspace_fips" == "1" ] && [ "$userspace_fips" == "1" ]; then
-            rlLog "FIPS mode is enabled :-)"
+            rlLog "FIPS mode is enabled"
             return 0
-        elif [ "$kernelspace_fips" != "$userspace_fips" ]; then
-            rlLog "FIPS mode is not correctly enabled :-("
-            rlLog "kernelspace fips mode = $kernelspace_fips"
-            rlLog "userspace fips mode = $userspace_fips"
-            return 2            
+        elif [ "$kernelspace_fips" == "0" ] && [ "$userspace_fips" == "0" ]; then
+            rlLog "FIPS mode is disabled"
+            return 1
         fi
-        
+
     elif rlIsRHEL ">=8"; then
-        
+
         # Since RHEL-8.0, both userspace and kernelspace need to be
         # in FIPS mode and FIPS crypto policy must be set, also
         # fips-mode-setup --check should report that enabling was
@@ -120,24 +121,23 @@ function fipsIsEnabled {
            [ "$userspace_fips" == "1" ]   && \
            [ "$cryptopolicy_fips" == "FIPS" ] && \
            [ "$check_fips" == "FIPS mode is enabled." ] ; then
-            rlLog "FIPS mode is enabled :-)"
+            rlLog "FIPS mode is enabled"
             return 0
-
-            k=0 u=1            
-        elif   [ "$kernelspace_fips" != "$userspace_fips" ] || \
-             { [ "$kernelspace_fips" == "$userspace_fips" ] || [ "$cryptopolicy_fips" != "FIPS" ]; } || \
-             { [ "$kernelspace_fips" == "$userspace_fips" ] || [ "$check_fips" != "FIPS mode is enabled." ]; }; then
-            rlLog "FIPS mode is not correctly enabled :-("
-            rlLog "kernelspace fips mode = $kernelspace_fips"
-            rlLog "userspace fips mode = $userspace_fips"
-            rlLog "crypto policy = $cryptopolicy_fips"
-            rlLog "fips-mode-setup --check = $check_fips"
-            return 2            
+        elif [ "$kernelspace_fips" == "0" ] && \
+             [ "$userspace_fips" == "0" ]   && \
+             [ "$cryptopolicy_fips" != "FIPS" ] && \
+             [ "$check_fips" == "FIPS mode is disabled." ] ; then
+            rlLog "FIPS mode is disabled"
+            return 1;
         fi
     fi
-                 
-    rlLog "FIPS mode is disabled :-)"
-    return 1
+
+    rlLog "FIPS mode is not correctly enabled!"
+    rlLog "kernelspace fips mode = $kernelspace_fips"
+    rlLog "userspace fips mode = $userspace_fips"
+    rlIsRHEL ">=8" && rlLog "crypto policy = $cryptopolicy_fips"
+    rlIsRHEL ">=8" && rlLog "fips-mode-setup --check = $check_fips"
+    return 2
 }
 
 true <<'=cut'
@@ -166,7 +166,7 @@ function fipsIsSupported {
     # Check RHEL version.
     if [[ $rhel =~ 7\. ]] && [[ $kernel =~ 4\. ]]; then
         rlLog "Product: RHEL-ALT-7"
-        rlLog "FIPS 140 is not supported in RHEL-ALT-7!" 
+        rlLog "FIPS 140 is not supported in RHEL-ALT-7!"
         supported=0
     else
         rlLog "Product: RHEL-${rhel}"
@@ -209,7 +209,7 @@ Returns 0 if enabling was successful, 1 otherwise.
 
 =cut
 function fipsEnable {
-    
+
     rlLog "Enabling FIPS 140 mode"
 
     # Turn-off prelink (if prelink is installed).
@@ -217,15 +217,34 @@ function fipsEnable {
 
     # Enforce 2048 bit limit on RSA and DSA generation (RHBZ#1039105).
     _enforceModulusBits || return 1
-   
+
+    # Workarounds for testing in FIPS 140 mode.
+    _workarounds || return 1
+
     # Enable FIPS 140 mode.
     _enableFIPS || return 1
 
     # Modify bootloader.
     _modifyBootloader || return 1
-    
+
     # Success.
     return 0
+}
+
+function _workarounds {
+
+    local ret_val=0 
+
+    if rlIsRHEL ">=8"; then
+
+        # On RHEL-8, rpm cannot verify digests of rpms using MD5 digest in FIPS 140.
+        # Unfortunately, older test rpms are do not have neither SHA1 nor SHA256 and
+        # hence cannot be installed.
+        rlRun "echo 'alias rpm=\"rpm --nofiledigest\"' >>/etc/profile.d/sh.local" 0 \
+            "Disable rpm file digest check" || ret_val=1
+    fi
+
+    return $ret_val
 }
 
 function _disablePrelink {
@@ -238,7 +257,7 @@ function _disablePrelink {
         if ! rlIsRHEL '<5'; then
             rlRun "yum list --showduplicates prelink" 0 "Wait for yum"
         fi
-        
+
         # Make sure prelink job is not running now (e.g. started by cron).
         rlRun "killall prelink" 0,1 "Kill all prelinks"
         rlRun "sed -i 's/PRELINKING=.*/PRELINKING=no/g' /etc/sysconfig/prelink" 0 "Configure system not to use prelink"
@@ -259,7 +278,7 @@ function _enforceModulusBits {
                chmod +x /etc/profile.d/openssl.sh && \
                echo 'setenv OPENSSL_ENFORCE_MODULUS_BITS true' > /etc/profile.d/openssl.csh && \
                chmod +x /etc/profile.d/openssl.csh" 0 "Enable OPENSSL_ENFORCE_MODULUS_BITS (profiles)"
-        
+
         # Beaker tests don't use profile or environment so we have to set
         # their environment separately.
         BEAKERLIB=${BEAKERLIB:-"/usr/share/beakerlib"}
@@ -274,12 +293,12 @@ function _enforceModulusBits {
 function _enableFIPS {
 
     if rlIsRHEL ">=8"; then
-        
+
         # Use crypto-policies to set-up FIPS 140 mode.
         rlRun "fips-mode-setup --enable" 0 "Enable FIPS 140 mode"
-       
+
     elif rlIsRHEL ">=6"; then
-    
+
         # Install dracut and dracut-fips on RHEL7 and RHEL6.
         rlCheckRpm "dracut" || rlRun "yum --enablerepo='*' install dracut -y" 0 "Install dracut"
         rlCheckRpm "dracut-fips" || rlRun "yum --enablerepo='*' install dracut-fips -y" 0 "Install dracut-fips"
@@ -299,7 +318,7 @@ function _enableFIPS {
             rlLogInfo "Intel AES instruction set not detected"
             rlCheckRpm "dracut-fips-aesni" && rlRun "yum remove -y dracut-fips-aesni" 0 "Remove dracut-fips-aesni"
         fi
-          
+
         # Re-generate initramfs to include FIPS dracut modules.
         rlRun "dracut -v -f" 0 "Regenerate initramfs"
     fi
@@ -316,15 +335,15 @@ function _modifyBootloader {
     local sed_options="--follow-symlinks"
 
     rlIsRHEL 5 && sed_options="-c"
-    
+
     # Get block device name.
     local boot_dev=$(df -P /boot/ | tail -1 | awk '{print $1}')
     if [ -z "$boot_dev" ]; then
         rlFail "Can't detect /boot device name, cannot continue!"
-        rlLog "df /boot/ | tail -1" 
+        rlLog "df /boot/ | tail -1"
         return 1
     fi
-    
+
     if [[ "${USE_UUID:-yes}" != "no" && "${USE_UUID:-1}" != "0" ]]; then
 
         # Get block device UUID, see BZ 1014527 if UUIDs don't work.
@@ -332,7 +351,7 @@ function _modifyBootloader {
         boot_dev="UUID=$(blkid -s UUID -o value $old_boot_dev)"
         if [ "$boot_dev" == "UUID=" ]; then
             rlFail "Cannnot detect /boot device UUID, cannot continue!"
-            rlLog "blkid -s UUID -o value $old_boot_dev" 
+            rlLog "blkid -s UUID -o value $old_boot_dev"
             return 1
         fi
     fi
@@ -353,13 +372,13 @@ function _modifyBootloader {
                 bootconf="/boot/grub2/grub.cfg"
                 rlRun "sed -i $sed_options 's/ fips=[01] boot=$boot_dev/ /g' $bootconf" 0 \
                     "Reset GRUB fips configuration"
-                rlRun "sed -i $sed_options 's|\(vmlinuz.*\)|\1 fips=1 boot=$boot_dev|g' $bootconf" \
+                rlRun "sed -i $sed_options 's|\(vmlinuz.*\)|\1 fips=1 boot=$boot_dev|g' $bootconf" 0 \
                     "Setup GRUB fips configuration"
             elif mount | grep -i efi; then
                 bootconf="/boot/efi/EFI/redhat/grub.conf"
                 rlRun "sed -i $sed_options 's/ fips=[01] boot=$boot_dev/ /g' $bootconf" 0 \
                     "Reset GRUB fips configuration"
-                rlRun "sed -i $sed_options 's|\(vmlinuz.*\)|\1 fips=1 boot=$boot_dev|g' $bootconf" \
+                rlRun "sed -i $sed_options 's|\(vmlinuz.*\)|\1 fips=1 boot=$boot_dev|g' $bootconf" 0 \
                     "Setup GRUB fips configuration"
             else
                 bootconf="/boot/grub/grub.conf"
@@ -373,34 +392,44 @@ function _modifyBootloader {
             bootconf="/etc/elilo.conf"
             rlRun "sed -i $sed_options 's/fips=[01] boot=$boot_dev/ /g' $bootconf" 0
             if grep -q 'append' $bootconf; then
-                rlRun "sed -i $sed_options 's|\(append=.*\)\"|\1 fips=1 boot=$boot_dev\"|g' $bootconf" 0
+                rlRun "sed -i $sed_options 's|\(append=.*\)\"|\1 fips=1 boot=$boot_dev\"|g' $bootconf" 0 \
+                    "Reset elilo fips configuration"
             else
-                rlRun "sed -i $sed_options 's|\(initrd.*\)|\1\n\tappend=\"fips=1 boot=$boot_dev\"|g' $bootconf" 0
+                rlRun "sed -i $sed_options 's|\(initrd.*\)|\1\n\tappend=\"fips=1 boot=$boot_dev\"|g' $bootconf" 0 \
+                    "Setup elilo fips configuration"
             fi
             ;;
         ppc|ppc64|ppc64le)
             if rpm -qa | grep "grub2-efi"; then
                 bootconf="/boot/efi/EFI/redhat/grub.cfg"
-                rlRun "sed -i $sed_options 's/ fips=[01] boot=$boot_dev/ /g' $bootconf" 0
-                rlRun "sed -i $sed_options 's|\(vmlinuz.*\)|\1 fips=1 boot=$boot_dev|g' $bootconf"
+                rlRun "sed -i $sed_options 's/ fips=[01] boot=$boot_dev/ /g' $bootconf" 0 \
+                    "Reset GRUB fips configuration"
+                rlRun "sed -i $sed_options 's|\(vmlinuz.*\)|\1 fips=1 boot=$boot_dev|g' $bootconf" 0 \
+                    "Setup GRUB fips configuration"
             elif rpm -qa | grep "grub2"; then
                 bootconf="/boot/grub2/grub.cfg"
-                rlRun "sed -i $sed_options 's/ fips=[01] boot=$boot_dev/ /g' $bootconf" 0
-                rlRun "sed -i $sed_options 's|\(vmlinuz.*\)|\1 fips=1 boot=$boot_dev|g' $bootconf"
+                rlRun "sed -i $sed_options 's/ fips=[01] boot=$boot_dev/ /g' $bootconf" 0 \
+                    "Reset GRUB fips configuration"
+                rlRun "sed -i $sed_options 's|\(vmlinuz.*\)|\1 fips=1 boot=$boot_dev|g' $bootconf" 0 \
+                    "Setup GRUB fips configuration"
             else
                 bootconf="/etc/yaboot.conf"
                 grep -q 'append' $bootconf || \
                     rlRun "sed -i $sed_options 's|\(root=.*\)|\1 append=\"\"|g' $bootconf"
-                rlRun "sed -i $sed_options 's/fips=[01] boot=$boot_dev/ /g' $bootconf" 0
-                rlRun "sed -i $sed_options 's|\(append=.*\)\"|\1 fips=1 boot=$boot_dev\"|g' $bootconf" 0
+                rlRun "sed -i $sed_options 's/fips=[01] boot=$boot_dev/ /g' $bootconf" 0 \
+                    "Reset yaboot configuration"
+                rlRun "sed -i $sed_options 's|\(append=.*\)\"|\1 fips=1 boot=$boot_dev\"|g' $bootconf" 0 \
+                    "Setup yaboot configuration"
             fi
             ;;
         s390x)
             bootconf="/etc/zipl.conf"
-            rlRun "sed -i $sed_options 's/ fips=[01] boot=$boot_dev/ /g' $bootconf" 0
-            rlRun "sed -i $sed_options 's/parameters=\"\(.*\)\"/parameters=\"\1 fips=1 boot=$boot_dev\"/g' $bootconf" 0
-            rlRun "zipl" 0
-            ;;        
+            rlRun "sed -i $sed_options 's/ fips=[01] boot=$boot_dev/ /g' $bootconf" 0 \
+                    "Reset zipl configuration"
+            rlRun "sed -i $sed_options 's/parameters=\"\(.*\)\"/parameters=\"\1 fips=1 boot=$boot_dev\"/g' $bootconf" 0 \
+                    "Setup zipl configuration"
+            rlRun "zipl" 0 "Apply zipl configuration"
+            ;;
     esac
 }
 
@@ -438,4 +467,3 @@ Ondrej Moris <omoris@redhat.com>
 =back
 
 =cut
-
