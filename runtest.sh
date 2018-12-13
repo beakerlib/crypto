@@ -55,7 +55,7 @@ rlJournalStart
                 
             rlPhaseEnd
 
-            #rhts-reboot
+            rhts-reboot
             fi
     else
         rlPhaseStartTest

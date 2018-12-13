@@ -243,8 +243,8 @@ function _workarounds {
         # have to workaround it not to check digests.
         rlRun "cp rstrnt-package-workaround.sh /usr/local/bin && \
                chmod a+x /usr/local/bin/rstrnt-package-workaround.sh && \
-               echo 'export RSTRNT_PKG_CMD=/usr/local/bin/rstrnt-package-workaround.sh' >>/etc/profile.d/sh.local" 0 \
-            "Apply workaround for installation test rpms with MD5 digest"
+               echo 'RSTRNT_PKG_CMD=/usr/local/bin/rstrnt-package-workaround.sh' >/usr/share/restraint/pkg_commands.d/rhel" 0 \
+              "Apply workaround for installation test rpms with MD5 digest" || ret_val=1
     fi
 
     return $ret_val
