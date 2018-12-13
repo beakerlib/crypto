@@ -242,7 +242,7 @@ function _workarounds {
         # hence cannot be installed. Test installation si done by restraint and we 
         # have to workaround it not to check digests.
         rlRun "cp rstrnt-package-workaround.sh /usr/local/bin && \
-               chmod +x /usr/local/bin/rstrnt-package-workaround.sh && \
+               chmod a+x /usr/local/bin/rstrnt-package-workaround.sh && \
                echo 'export RSTRNT_PKG_CMD=/usr/local/bin/rstrnt-package-workaround.sh' >>/etc/profile.d/sh.local" 0 \
             "Apply workaround for installation test rpms with MD5 digest"
     fi

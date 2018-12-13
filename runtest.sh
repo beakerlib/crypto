@@ -51,7 +51,7 @@ rlJournalStart
                 # Before completing setup by restart, system is misconfigured.
                 rlIsRHEL ">6.5" && rlRun "fipsIsEnabled" 2
                 
-                rlRun "touch /var/tmp/fips-reboot" 0
+                #rlRun "touch /var/tmp/fips-reboot" 0
                 
             rlPhaseEnd
 
