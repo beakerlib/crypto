@@ -43,193 +43,11 @@ FIPS 140 mode and it can enable FIPS 140 mode.
 =cut
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#   Functions
+#   Internal Functions and Variabled
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-true <<'=cut'
-=pod
-
-=head1 FUNCTIONS
-
-=head2 fipsIsEnabled
-
-Function check current state of FIPS 140 mode. Returns 0 if it is correctly
-enabled, 1 if disabled and 2 otherwise (misconfiguration).
-
-=over
-
-=back
-
-=cut
-
-function fipsIsEnabled {
-
-    rlLog "Checking FIPS 140 mode status"
-
-    # Check OpenSSL setting.
-    if rlIsRHEL '>6.5'; then
-        if [[ -n $OPENSSL_ENFORCE_MODULUS_BITS ]]; then
-            rlLog "OpenSSL working in new FIPS mode, 1024 bit RSA disallowed!"
-        else
-            rlLog "OpenSSL working in compatibility FIPS mode, 1024 bit allowed"
-        fi
-    fi
-
-    # Check kernelspace FIPS mode.
-    local kernelspace_fips=$(cat /proc/sys/crypto/fips_enabled)
-
-    # Check userspace FIPS mode.
-    local userspace_fips=$(test -e /etc/system-fips && echo 1 || echo 0)
-
-    # Check crypto policy.
-    local cryptopolicy_fips=$(rlIsRHEL ">=8" && update-crypto-policies --show)
-
-    # Check crypto policy.
-    local check_fips=$(rlIsRHEL ">=8" && fips-mode-setup --check | tail -1)
-
-    # Check FIPS mode.
-    if rlIsRHEL ">=5" && rlIsRHEL "<6.4"; then
-
-        # In RHEL-5 and before RHEL-6.5, only kernel needs to be in FIPS mode.
-        if [ "$kernelspace_fips" == "1" ]; then
-            rlLog "FIPS mode is enabled"
-            return 0
-        else
-            rlLog "FIPS mode is disabled"
-            return 1
-        fi
-
-    elif rlIsRHEL ">=6.5" && rlIsRHEL "<8"; then
-
-        # Since RHEL-6.5 and before RHEL-8.0, both userspace and
-        # kernelspace need to be in FIPS mode.
-        if [ "$kernelspace_fips" == "1" ] && [ "$userspace_fips" == "1" ]; then
-            rlLog "FIPS mode is enabled"
-            return 0
-        elif [ "$kernelspace_fips" == "0" ] && [ "$userspace_fips" == "0" ]; then
-            rlLog "FIPS mode is disabled"
-            return 1
-        fi
-
-    elif rlIsRHEL ">=8"; then
-
-        # Since RHEL-8.0, both userspace and kernelspace need to be
-        # in FIPS mode and FIPS crypto policy must be set, also
-        # fips-mode-setup --check should report that enabling was
-        # completed.
-        if [ "$kernelspace_fips" == "1" ] && \
-           [ "$userspace_fips" == "1" ]   && \
-           [ "$cryptopolicy_fips" == "FIPS" ] && \
-           [ "$check_fips" == "FIPS mode is enabled." ] ; then
-            rlLog "FIPS mode is enabled"
-            return 0
-        elif [ "$kernelspace_fips" == "0" ] && \
-             [ "$userspace_fips" == "0" ]   && \
-             [ "$cryptopolicy_fips" != "FIPS" ] && \
-             [ "$check_fips" == "FIPS mode is disabled." ] ; then
-            rlLog "FIPS mode is disabled"
-            return 1;
-        fi
-    fi
-
-    rlLog "FIPS mode is not correctly enabled!"
-    rlLog "kernelspace fips mode = $kernelspace_fips"
-    rlLog "userspace fips mode = $userspace_fips"
-    rlIsRHEL ">=8" && rlLog "crypto policy = $cryptopolicy_fips"
-    rlIsRHEL ">=8" && rlLog "fips-mode-setup --check = $check_fips"
-    return 2
-}
-
-true <<'=cut'
-=pod
-
-=head2 fipsIsSupported
-
-Function verifies whether the FIPS 140 product is supported on the current platform.
-Returns 0 if FIPS mode is supported, 1 if not.
-
-=over
-
-=back
-
-=cut
-
-function fipsIsSupported {
-
-    local arch=$(uname -i)
-    local rhel=$(cat /etc/redhat-release | sed -n 's/.*\([0-9]\.[0-9]*\).*/\1/p')
-    local kernel=$(uname -r)
-    local supported=1
-
-    rlLog "Checking FIPS 140 support"
-
-    # Check RHEL version.
-    if [[ $rhel =~ 7\. ]] && [[ $kernel =~ 4\. ]]; then
-        rlLog "Product: RHEL-ALT-7"
-        rlLog "FIPS 140 is not supported in RHEL-ALT-7!"
-        supported=0
-    else
-        rlLog "Product: RHEL-${rhel}"
-    fi
-
-    # Check HW architecture.
-    rlLog "Architecture: $arch"
-    if [[ $arch =~ i[36]86 ]] && ! grep -q "sse2" /proc/cpuinfo; then
-        rlLog "FIPS 140 requires SSE2 instruction set for OpenSSL on Intel!"
-        supported=0
-    elif [[ $arch =~ s390 ]] && rlIsRHEL '<7.1'; then
-        rlLog "FIPS 140 is not supported on s390x in RHEL older than 7.1!"
-        supported=0
-    elif [[ $ARCH =~ aarch ]] && ! rlIsRHEL '8'; then
-        rlLog "FIPS 140 is not supported on aarch64 in RHEL older than 8.0!"
-        supported=0
-    fi
-
-    # Report,
-    if [ "$supported" == "0" ]; then
-        rlLog "FIPS 140 mode is not supported"
-        rlLog "See https://wiki.test.redhat.com/BaseOs/Security/FIPS#SupportedPlatforms"
-        return 1
-    fi
-    rlLog "FIPS 140 mode is supported"
-    return 0
-}
-
-true <<'=cut'
-=pod
-
-=head2 fipsEnable
-
-Function enables FIPS 140 mode. Enablement must be completed by system restart.
-Returns 0 if enabling was successful, 1 otherwise.
-
-=over
-
-=back
-
-=cut
-function fipsEnable {
-
-    rlLog "Enabling FIPS 140 mode"
-
-    # Turn-off prelink (if prelink is installed).
-    _disablePrelink || return 1
-
-    # Enforce 2048 bit limit on RSA and DSA generation (RHBZ#1039105).
-    _enforceModulusBits || return 1
-
-    # Workarounds for testing in FIPS 140 mode.
-    _workarounds || return 1
-
-    # Enable FIPS 140 mode.
-    _enableFIPS || return 1
-
-    # Modify bootloader.
-    _modifyBootloader || return 1
-
-    # Success.
-    return 0
-}
+# Directory with this library.
+_fipsLIBDIR=""
 
 function _workarounds {
 
@@ -241,7 +59,7 @@ function _workarounds {
         # Unfortunately, older test rpms are do not have neither SHA1 nor SHA256 and
         # hence cannot be installed. Test installation si done by restraint and we 
         # have to workaround it not to check digests.
-        rlRun "cp rstrnt-package-workaround.sh /usr/local/bin && \
+        rlRun "cp ${_fipsLIBDIR}/rstrnt-package-workaround.sh /usr/local/bin && \
                chmod a+x /usr/local/bin/rstrnt-package-workaround.sh && \
                echo 'RSTRNT_PKG_CMD=/usr/local/bin/rstrnt-package-workaround.sh' >/usr/share/restraint/pkg_commands.d/rhel" 0 \
               "Apply workaround for installation test rpms with MD5 digest" || ret_val=1
@@ -436,6 +254,197 @@ function _modifyBootloader {
     esac
 }
 
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#   Functions
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+true <<'=cut'
+=pod
+
+=head1 FUNCTIONS
+
+=head2 fipsIsEnabled
+
+Function check current state of FIPS 140 mode. Returns 0 if it is correctly
+enabled, 1 if disabled and 2 otherwise (misconfiguration).
+
+=over
+
+=back
+
+=cut
+
+function fipsIsEnabled {
+
+    rlLog "Checking FIPS 140 mode status"
+
+    # Check OpenSSL setting.
+    if rlIsRHEL '>6.5'; then
+        if [[ -n $OPENSSL_ENFORCE_MODULUS_BITS ]]; then
+            rlLog "OpenSSL working in new FIPS mode, 1024 bit RSA disallowed!"
+        else
+            rlLog "OpenSSL working in compatibility FIPS mode, 1024 bit allowed"
+        fi
+    fi
+
+    # Check kernelspace FIPS mode.
+    local kernelspace_fips=$(cat /proc/sys/crypto/fips_enabled)
+
+    # Check userspace FIPS mode.
+    local userspace_fips=$(test -e /etc/system-fips && echo 1 || echo 0)
+
+    # Check crypto policy.
+    local cryptopolicy_fips=$(rlIsRHEL ">=8" && update-crypto-policies --show)
+
+    # Check crypto policy.
+    local check_fips=$(rlIsRHEL ">=8" && fips-mode-setup --check | tail -1)
+
+    # Check FIPS mode.
+    if rlIsRHEL ">=5" && rlIsRHEL "<6.4"; then
+
+        # In RHEL-5 and before RHEL-6.5, only kernel needs to be in FIPS mode.
+        if [ "$kernelspace_fips" == "1" ]; then
+            rlLog "FIPS mode is enabled"
+            return 0
+        else
+            rlLog "FIPS mode is disabled"
+            return 1
+        fi
+
+    elif rlIsRHEL ">=6.5" && rlIsRHEL "<8"; then
+
+        # Since RHEL-6.5 and before RHEL-8.0, both userspace and
+        # kernelspace need to be in FIPS mode.
+        if [ "$kernelspace_fips" == "1" ] && [ "$userspace_fips" == "1" ]; then
+            rlLog "FIPS mode is enabled"
+            return 0
+        elif [ "$kernelspace_fips" == "0" ] && [ "$userspace_fips" == "0" ]; then
+            rlLog "FIPS mode is disabled"
+            return 1
+        fi
+
+    elif rlIsRHEL ">=8"; then
+
+        # Since RHEL-8.0, both userspace and kernelspace need to be
+        # in FIPS mode and FIPS crypto policy must be set, also
+        # fips-mode-setup --check should report that enabling was
+        # completed.
+        if [ "$kernelspace_fips" == "1" ] && \
+           [ "$userspace_fips" == "1" ]   && \
+           [ "$cryptopolicy_fips" == "FIPS" ] && \
+           [ "$check_fips" == "FIPS mode is enabled." ] ; then
+            rlLog "FIPS mode is enabled"
+            return 0
+        elif [ "$kernelspace_fips" == "0" ] && \
+             [ "$userspace_fips" == "0" ]   && \
+             [ "$cryptopolicy_fips" != "FIPS" ] && \
+             [ "$check_fips" == "FIPS mode is disabled." ] ; then
+            rlLog "FIPS mode is disabled"
+            return 1;
+        fi
+    fi
+
+    rlLog "FIPS mode is not correctly enabled!"
+    rlLog "kernelspace fips mode = $kernelspace_fips"
+    rlLog "userspace fips mode = $userspace_fips"
+    rlIsRHEL ">=8" && rlLog "crypto policy = $cryptopolicy_fips"
+    rlIsRHEL ">=8" && rlLog "fips-mode-setup --check = $check_fips"
+    return 2
+}
+
+true <<'=cut'
+=pod
+
+=head2 fipsIsSupported
+
+Function verifies whether the FIPS 140 product is supported on the current platform.
+Returns 0 if FIPS mode is supported, 1 if not.
+
+=over
+
+=back
+
+=cut
+
+function fipsIsSupported {
+
+    local arch=$(uname -i)
+    local rhel=$(cat /etc/redhat-release | sed -n 's/.*\([0-9]\.[0-9]*\).*/\1/p')
+    local kernel=$(uname -r)
+    local supported=1
+
+    rlLog "Checking FIPS 140 support"
+
+    # Check RHEL version.
+    if [[ $rhel =~ 7\. ]] && [[ $kernel =~ 4\. ]]; then
+        rlLog "Product: RHEL-ALT-7"
+        rlLog "FIPS 140 is not supported in RHEL-ALT-7!"
+        supported=0
+    else
+        rlLog "Product: RHEL-${rhel}"
+    fi
+
+    # Check HW architecture.
+    rlLog "Architecture: $arch"
+    if [[ $arch =~ i[36]86 ]] && ! grep -q "sse2" /proc/cpuinfo; then
+        rlLog "FIPS 140 requires SSE2 instruction set for OpenSSL on Intel!"
+        supported=0
+    elif [[ $arch =~ s390 ]] && rlIsRHEL '<7.1'; then
+        rlLog "FIPS 140 is not supported on s390x in RHEL older than 7.1!"
+        supported=0
+    elif [[ $ARCH =~ aarch ]] && ! rlIsRHEL '8'; then
+        rlLog "FIPS 140 is not supported on aarch64 in RHEL older than 8.0!"
+        supported=0
+    fi
+
+    # Report,
+    if [ "$supported" == "0" ]; then
+        rlLog "FIPS 140 mode is not supported"
+        rlLog "See https://wiki.test.redhat.com/BaseOs/Security/FIPS#SupportedPlatforms"
+        return 1
+    fi
+    rlLog "FIPS 140 mode is supported"
+    return 0
+}
+
+true <<'=cut'
+=pod
+
+=head2 fipsEnable
+
+Function enables FIPS 140 mode. Enablement must be completed by system restart.
+Returns 0 if enabling was successful, 1 otherwise.
+
+=over
+
+=back
+
+=cut
+function fipsEnable {
+
+    rlLog "Enabling FIPS 140 mode"
+
+    # Turn-off prelink (if prelink is installed).
+    _disablePrelink || return 1
+
+    # Enforce 2048 bit limit on RSA and DSA generation (RHBZ#1039105).
+    _enforceModulusBits || return 1
+
+    # Workarounds for testing in FIPS 140 mode.
+    _workarounds || return 1
+
+    # Enable FIPS 140 mode.
+    _enableFIPS || return 1
+
+    # Modify bootloader.
+    _modifyBootloader || return 1
+
+    # Success.
+    return 0
+}
+
+
 true <<'=cut'
 =pod
 
@@ -449,6 +458,9 @@ Initialization callback.
 
 =cut
 function fipsLibraryLoaded {
+
+    _fipsLIBDIR="/mnt/tests/distribution/Library/fips/"
+
     return 0
 }
 
