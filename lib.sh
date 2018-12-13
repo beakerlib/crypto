@@ -239,9 +239,12 @@ function _workarounds {
 
         # On RHEL-8, rpm cannot verify digests of rpms using MD5 digest in FIPS 140.
         # Unfortunately, older test rpms are do not have neither SHA1 nor SHA256 and
-        # hence cannot be installed.
-        rlRun "echo 'alias rpm=\"rpm --nofiledigest\"' >>/etc/profile.d/sh.local" 0 \
-            "Disable rpm file digest check" || ret_val=1
+        # hence cannot be installed. Test installation si done by restraint and we 
+        # have to workaround it not to check digests.
+        rlRun "cp rstrnt-package-workaround.sh /usr/local/bin && \
+               chmod +x /usr/local/bin/rstrnt-package-workaround.sh && \
+               echo 'export RSTRNT_PKG_CMD=/usr/local/bin/rstrnt-package-workaround.sh' >>/etc/profile.d/sh.local" 0 \
+            "Apply workaround for installation test rpms with MD5 digest"
     fi
 
     return $ret_val
