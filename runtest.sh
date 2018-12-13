@@ -38,6 +38,8 @@ rlJournalStart
     if ! [ -e /var/tmp/fips-reboot ]; then
         rlPhaseStartTest
 
+            rlRun "fipsIsSupported" || rlDie
+
             # Initially, FIPS mode is disabled.
             rlRun "fipsIsEnabled" 1
 
@@ -48,7 +50,7 @@ rlJournalStart
             rlIsRHEL ">6.5" && rlRun "fipsIsEnabled" 2
             
             rlRun "touch /var/tmp/fips-reboot" 0
-            PS1="TEST> " bash
+
         rlPhaseEnd
 
         rhts-reboot
