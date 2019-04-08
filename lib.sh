@@ -377,7 +377,7 @@ function fipsIsSupported {
     rlLog "Checking FIPS 140 support"
 
     # Check RHEL version.
-    if [[ $rhel =~ 7\. ]] && [[ $kernel =~ 4\. ]]; then
+    if [[ $rhel =~ 7\. ]] && [[ $kernel =~ ^4\. ]]; then
         rlLog "Product: RHEL-ALT-7"
         rlLog "FIPS 140 is not supported in RHEL-ALT-7!"
         supported=0
