@@ -14,7 +14,7 @@ if [[ "$operation" == "remove" ]]; then
 elif [[ "$operation" == "install" ]]; then
 
     pushd $tmp_dir 
-    dnf install --downloadonly -y --downloaddir . $packages
+    dnf install --downloadonly -y --downloaddir . --skip-broken $packages
     rpm -ihv --nodigest --nofiledigest *.rpm
     popd
 fi
