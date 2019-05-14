@@ -113,7 +113,7 @@ function _enforceModulusBits {
 
 function _enableFIPS {
 
-    if rlIsRHEL ">=8"; then
+    if ! rlIsRHEL "<8"; then
 
         # Use crypto-policies to set-up FIPS 140 mode.
         rlRun "fips-mode-setup --enable" 0 "Enable FIPS 140 mode"
@@ -150,7 +150,7 @@ function _enableFIPS {
 function _modifyBootloader {
 
     # On RHEL-8, fips-mode-setup binary modifies bootloader.
-    rlIsRHEL ">=8" && return 0
+    rlIsRHEL "<8" || return 0
 
     local arch=$(uname -i)
     local sed_options="--follow-symlinks"
@@ -295,10 +295,10 @@ function fipsIsEnabled {
     local userspace_fips=$(test -e /etc/system-fips && echo 1 || echo 0)
 
     # Check crypto policy.
-    local cryptopolicy_fips=$(rlIsRHEL ">=8" && update-crypto-policies --show)
+    local cryptopolicy_fips=$(rlIsRHEL "<8" || update-crypto-policies --show)
 
     # Check crypto policy.
-    local check_fips=$(rlIsRHEL ">=8" && fips-mode-setup --check | tail -1)
+    local check_fips=$(rlIsRHEL "<8" || fips-mode-setup --check | tail -1)
 
     # Check FIPS mode.
     if rlIsRHEL ">=5" && rlIsRHEL "<6.4"; then
@@ -324,7 +324,7 @@ function fipsIsEnabled {
             return 1
         fi
 
-    elif rlIsRHEL ">=8"; then
+    elif ! rlIsRHEL "<8"; then
 
         # Since RHEL-8.0, both userspace and kernelspace need to be
         # in FIPS mode and FIPS crypto policy must be set, also
@@ -348,8 +348,8 @@ function fipsIsEnabled {
     rlLog "FIPS mode is not correctly enabled!"
     rlLog "kernelspace fips mode = $kernelspace_fips"
     rlLog "userspace fips mode = $userspace_fips"
-    rlIsRHEL ">=8" && rlLog "crypto policy = $cryptopolicy_fips"
-    rlIsRHEL ">=8" && rlLog "fips-mode-setup --check = $check_fips"
+    rlIsRHEL "<8" || rlLog "crypto policy = $cryptopolicy_fips"
+    rlIsRHEL "<8" || rlLog "fips-mode-setup --check = $check_fips"
     return 2
 }
 
