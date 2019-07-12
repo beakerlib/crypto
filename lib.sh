@@ -298,7 +298,7 @@ function fipsIsEnabled {
     local cryptopolicy_fips=$(rlIsRHEL "<8" || update-crypto-policies --show)
 
     # Check crypto policy.
-    local check_fips=$(rlIsRHEL "<8" || fips-mode-setup --check | tail -1)
+    local check_fips=$(rlIsRHEL "<8" || fips-mode-setup --check | grep "FIPS mode")
 
     # Check FIPS mode.
     if rlIsRHEL ">=5" && rlIsRHEL "<6.4"; then
