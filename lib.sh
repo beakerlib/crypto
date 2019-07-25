@@ -466,7 +466,7 @@ function fipsLibraryLoaded {
     _fipsLIBDIR="/mnt/tests/distribution/Library/fips/"
 
     fipsIsEnabled; ret=$?
-    if (( ret = 2 )); then
+    if (( ret == 2 )); then
         rlFail "FIPS mode is already misconfigured, see above!"
     fi
 
