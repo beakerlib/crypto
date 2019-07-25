@@ -38,7 +38,9 @@ distribution/fips - a set of helpers for FIPS 140 testing
 =head1 DESCRIPTION
 
 This is a library intended for FIPS 140 testing. It can check status of
-FIPS 140 mode and it can enable FIPS 140 mode.
+FIPS 140 mode and it can enable FIPS 140 mode. Importing this library
+with misconfigured (neither fully disabled nor fully enabled) FIPS 140 mode
+will produce an error.
 
 =cut
 
@@ -451,6 +453,8 @@ true <<'=cut'
 =head2 fipsLibraryLoaded
 
 Initialization callback.
+Importing this library with misconfigured (neither fully disabled nor
+fully enabled) FIPS 140 mode will produce an error.
 
 =over
 
@@ -460,6 +464,11 @@ Initialization callback.
 function fipsLibraryLoaded {
 
     _fipsLIBDIR="/mnt/tests/distribution/Library/fips/"
+
+    fipsIsEnabled; ret=$?
+    if (( ret = 2 )); then
+        rlFail "FIPS mode is already misconfigured, see above!"
+    fi
 
     return 0
 }
