@@ -258,11 +258,21 @@ function _modifyBootloader {
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#   Functions
+#   Functions and Variables
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 true <<'=cut'
 =pod
+
+=head1 VARIABLES
+
+=head2 fipsMode
+
+This variable holds state of FIPS mode at the time when library is loaded.
+
+=over
+
+=back
 
 =head1 FUNCTIONS
 
@@ -465,8 +475,15 @@ function fipsLibraryLoaded {
 
     _fipsLIBDIR="/mnt/tests/distribution/Library/fips/"
 
-    fipsIsEnabled; ret=$?
-    if (( ret == 2 )); then
+    fipsIsEnabled 
+    ret=$?
+    
+    if [ $ret == 0 ]; then
+        fipsMode="enabled"
+    elif [ $ret == 1 ]; then
+        fipsMode="disabled"
+    else
+        fipsMode="error"
         rlFail "FIPS mode is already misconfigured, see above!"
     fi
 
