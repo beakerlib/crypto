@@ -52,7 +52,7 @@ $(METADATA): Makefile
 	@echo "Path:            $(TEST_DIR)" >> $(METADATA)
 	@echo "Description:     A set of helpers for FIPS 140 testing" >> $(METADATA)
 	@echo "Type:            Library" >> $(METADATA)
-	@echo "Requires:        coreutils" >> $(METADATA)
+	@echo "Requires:        coreutils crypto-policies fips-mode-setup" >> $(METADATA)
 	@echo "TestTime:        30m" >> $(METADATA)
 	@echo "Provides:        library(distribution/fips)" >> $(METADATA)
 	@echo "License:         GPLv2" >> $(METADATA)
