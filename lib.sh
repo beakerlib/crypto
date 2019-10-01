@@ -475,6 +475,13 @@ function fipsLibraryLoaded {
 
     _fipsLIBDIR="/mnt/tests/distribution/Library/fips/"
 
+    # In Fedora, fips-mode-setup is separate package, but cannot 
+    # be installed via fips library dependecies.
+    if rlIsFedora && ! which fips-mode-setup >/dev/null 2>&1; then
+        rlLog "Installing Missing fips-mode-setup package"
+        rlRun "dnf install fips-mode-setup -y" 
+    fi
+    
     fipsIsEnabled 
     ret=$?
     
