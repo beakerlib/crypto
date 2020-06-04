@@ -481,7 +481,15 @@ function fipsLibraryLoaded {
         rlLog "Installing Missing fips-mode-setup package"
         rlRun "dnf install fips-mode-setup -y" 
     fi
-    
+
+    # In RHEL 8.3+ and Fedora, scripts are in crypto-policies-scripts
+    if ! rlIsRHEL '<8.3' && (
+            ! command -v fips-mode-setup >/dev/null 2>&1 ||
+            ! command -v update-crypto-policies >/dev/null 2>&1); then
+        rlLog "Installing missing crypto-policies-scripts package"
+        rlRun "dnf install crypto-policies-scripts -y --skip-broken"
+    fi
+
     fipsIsEnabled 
     ret=$?
     
