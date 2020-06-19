@@ -1,0 +1,14 @@
+summary: A set of helpers for FIPS 140 testing
+contact: Ondrej Moris <omoris@redhat.com>
+component: []
+test: ./runtest.sh
+recommend:
+    - coreutils
+    - crypto-policies
+    - crypto-policies-scripts
+    - fips-mode-setup
+duration: 30m
+enabled: true
+extra-summary: '[fips] a set of helpers for FIPS 140 testing (distribution/fips)'
+extra-task: /distribution/Library/fips
+extra-nitrate: TC#0384317
