@@ -301,7 +301,12 @@ function fipsIsEnabled {
     fi
 
     # Check kernelspace FIPS mode.
-    local kernelspace_fips=$(cat /proc/sys/crypto/fips_enabled)
+
+    # If /proc/sys/crypto/fips_enabled is missing, assume that the kernel is not
+    # in FIPS mode, being equivalent to have the flag in place with the value 0.
+    # The flag is not provided by some systems, depending on the kernel
+    # configuration (e.g. in gitlab-ci).
+    local kernelspace_fips=$(cat /proc/sys/crypto/fips_enabled || echo 0)
 
     # Check userspace FIPS mode.
     local userspace_fips=$(test -e /etc/system-fips && echo 1 || echo 0)
