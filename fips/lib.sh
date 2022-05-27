@@ -300,13 +300,14 @@ function fipsIsEnabled {
         fi
     fi
 
-    # Check kernelspace FIPS mode.
-
-    # If /proc/sys/crypto/fips_enabled is missing, assume that the kernel is not
-    # in FIPS mode, being equivalent to have the flag in place with the value 0.
-    # The flag is not provided by some systems, depending on the kernel
-    # configuration (e.g. in gitlab-ci).
-    local kernelspace_fips=$(cat /proc/sys/crypto/fips_enabled || echo 0)
+    # Check kernelspace FIPS mode and crypto-policies status.
+    # This only work if CONFIG_CRYPTO_FIPS is enabled in the kernel.
+    local kernelspace_fips=0
+    local check_fips="FIPS mode is disabled."
+    if [ -e /proc/sys/crypto/fips_enabled ]; then
+        kernelspace_fips=$(cat /proc/sys/crypto/fips_enabled)
+        check_fips=$(rlIsRHEL "<8" || fips-mode-setup --check | grep "FIPS mode")
+    fi
 
     # Check userspace FIPS mode.
     local userspace_fips=$(test -e /etc/system-fips && echo 1 || echo 0)
@@ -314,8 +315,6 @@ function fipsIsEnabled {
     # Check crypto policy.
     local cryptopolicy_fips=$(rlIsRHEL "<8" || update-crypto-policies --show)
 
-    # Check crypto policy.
-    local check_fips=$(rlIsRHEL "<8" || fips-mode-setup --check | grep "FIPS mode")
 
     # Check FIPS mode.
     if rlIsRHEL ">=5" && rlIsRHEL "<6.4"; then
@@ -410,7 +409,7 @@ function fipsIsSupported {
     elif [[ $arch =~ s390 ]] && rlIsRHEL '<7.1'; then
         rlLog "FIPS 140 is not supported on s390x in RHEL older than 7.1!"
         supported=0
-    elif [[ $ARCH =~ aarch ]] && ! rlIsRHEL '8'; then
+    elif [[ $ARCH =~ aarch ]] && ! rlIsRHEL '>=8'; then
         rlLog "FIPS 140 is not supported on aarch64 in RHEL older than 8.0!"
         supported=0
     fi
