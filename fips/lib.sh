@@ -48,21 +48,41 @@ will produce an error.
 #   Internal Functions and Variabled
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-# Directory with this library.
-_fipsLIBDIR=""
-
 function _workarounds {
 
     local ret_val=0 
 
-    if rlIsRHEL ">=8"; then
+    if rlIsRHEL ">=8" && [ -d /usr/share/restraint ]; then
 
         # On RHEL-8, rpm cannot verify digests of rpms using MD5 digest in FIPS 140.
         # Unfortunately, older test rpms are do not have neither SHA1 nor SHA256 and
         # hence cannot be installed. Test installation si done by restraint and we 
         # have to workaround it not to check digests.
-        rlRun "cp ${_fipsLIBDIR}/rstrnt-package-workaround.sh /usr/local/bin && \
-               chmod a+x /usr/local/bin/rstrnt-package-workaround.sh && \
+        cat >/usr/local/bin/rstrnt-package-workaround.sh<<EOF
+#!/bin/bash
+
+tmp_dir=$(mktemp -d)
+
+shift
+operation=$1
+shift 
+packages=$*
+
+if [[ "$operation" == "remove" ]]; then
+
+    dnf remove -y $packages
+    
+elif [[ "$operation" == "install" ]]; then
+
+    pushd $tmp_dir 
+    dnf install --downloadonly -y --downloaddir . --skip-broken $packages
+    rpm -Uhv --nodigest --nofiledigest --nodeps *.rpm
+    popd
+fi
+
+rm -rf $tmp_dir
+EOF
+        rlRun "chmod a+x /usr/local/bin/rstrnt-package-workaround.sh && \
                echo 'RSTRNT_PKG_CMD=/usr/local/bin/rstrnt-package-workaround.sh' >/usr/share/restraint/pkg_commands.d/rhel" 0 \
               "Apply workaround for installation test rpms with MD5 digest" || ret_val=1
     fi
@@ -476,8 +496,6 @@ fully enabled) FIPS 140 mode will produce an error.
 
 =cut
 function fipsLibraryLoaded {
-
-    _fipsLIBDIR="/mnt/tests/distribution/Library/fips/"
 
     # In Fedora, fips-mode-setup is separate package, but cannot 
     # be installed via fips library dependecies.

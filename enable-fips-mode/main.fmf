@@ -1,0 +1,9 @@
+summary: Enable FIPS 140 mode
+description: ''
+enabled: true
+contact: Ondrej Moris <omoris@redhat.com>
+test: ./runtest.sh
+framework: beakerlib
+require:
+  - library(crypto/fips)
+duration: 15m
