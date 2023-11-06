@@ -59,7 +59,7 @@ rlJournalStart
             rlCheckMountEngarchive && rlRun "umount -l /mnt/engarchive /mnt/engarchive2"
 
             rlPhaseEnd
-            tmt-reboot
+            tmt-reboot -t 3600
         else
             rlRun "fipsIsEnabled"
         fi
