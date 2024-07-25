@@ -405,8 +405,8 @@ Returns 0 if FIPS mode is supported, 1 if not.
 
 function fipsIsSupported {
 
-    local arch=$(uname -i)
-    local rhel=$(cat /etc/redhat-release | sed -n 's/.*\([0-9]\.[0-9]*\).*/\1/p')
+    local arch=$(uname -m)
+    local rhel=$(cat /etc/redhat-release | sed -n 's/.* \([0-9]\+\.[0-9]\+\).*/\1/p')
     local kernel=$(uname -r)
     local supported=1
 
