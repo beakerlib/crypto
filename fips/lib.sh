@@ -360,6 +360,24 @@ function fipsIsEnabled {
             return 1
         fi
 
+    elif (rlIsFedora && ! rlIsFedora "<36") || (rlIsRHEL && ! rlIsRHEL '<10'); then
+
+        # Since Fedora 36 / RHEL-10,
+        # userspace marker file doesn't have to be present,
+        # so it's (kernel && policy && --check).
+
+        if [ "$kernelspace_fips" == "1" ] && \
+           [ "$cryptopolicy_fips" == "FIPS" ] && \
+           [ "$check_fips" == "FIPS mode is enabled." ] ; then
+            rlLog "FIPS mode is enabled"
+            return 0
+        elif [ "$kernelspace_fips" == "0" ] && \
+             [ "$cryptopolicy_fips" != "FIPS" ] && \
+             [ "$check_fips" == "FIPS mode is disabled." ] ; then
+            rlLog "FIPS mode is disabled"
+            return 1;
+        fi
+
     elif ! rlIsRHEL "<8"; then
 
         # Since RHEL-8.0, both userspace and kernelspace need to be
