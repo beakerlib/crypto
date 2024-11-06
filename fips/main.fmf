@@ -7,6 +7,7 @@ recommend:
     - crypto-policies
     - crypto-policies-scripts
     - fips-mode-setup
+    - grubby
 duration: 30m
 enabled: true
 extra-summary: '[fips] a set of helpers for FIPS 140 testing (distribution/fips)'

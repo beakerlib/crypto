@@ -27,12 +27,12 @@
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # Include Beaker environment
-. /usr/bin/rhts-environment.sh || exit 1
 . /usr/share/beakerlib/beakerlib.sh || exit 1
 
 rlJournalStart
     rlPhaseStartSetup
-        rlRun "rlImport distribution/fips" || rlDie
+        rlRun "source lib.sh"
+        rlRun "fipsLibraryLoaded"
     rlPhaseEnd
 
     if ! [ -e /var/tmp/fips-reboot ]; then
@@ -49,7 +49,7 @@ rlJournalStart
                 rlRun "fipsEnable" 0
                 
                 # Before completing setup by restart, system is misconfigured.
-                rlIsRHEL ">6.5" && rlRun "fipsIsEnabled" 2
+                rlRun "fipsIsEnabled" 2
                 
                 rlRun "touch /var/tmp/fips-reboot" 0
                 
