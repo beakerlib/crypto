@@ -225,7 +225,7 @@ true <<'=cut'
 =head1 VARIABLES
 
 =head2 fipsMode
-u
+
 This variable holds state of FIPS mode at the time when library is loaded.
 
 =over
@@ -291,25 +291,6 @@ function fipsIsEnabled {
         fi
 
     elif rlIsRHEL "8" "9"; then
-
-
-        # Since Fedora 36 / RHEL-10,
-        # userspace marker file doesn't have to be present,
-        # so it's (kernel && policy && --check).
-
-        if [ "$kernelspace_fips" == "1" ] && \
-           [ "$cryptopolicy_fips" == "FIPS" ] && \
-           [ "$check_fips" == "FIPS mode is enabled." ] ; then
-            rlLog "FIPS mode is enabled"
-            return 0
-        elif [ "$kernelspace_fips" == "0" ] && \
-             [ "$cryptopolicy_fips" != "FIPS" ] && \
-             [ "$check_fips" == "FIPS mode is disabled." ] ; then
-            rlLog "FIPS mode is disabled"
-            return 1;
-        fi
-
-    elif ! rlIsRHEL "<8"; then
 
         # Since RHEL-8.0, both userspace and kernelspace need to be
         # in FIPS mode and FIPS crypto policy must be set, also
@@ -398,8 +379,8 @@ Returns 0 if FIPS mode is supported, 1 if not.
 
 function fipsIsSupported {
 
-    local arch=$(uname -m)
-    local rhel=$(cat /etc/redhat-release | sed -n 's/.* \([0-9]\+\.[0-9]\+\).*/\1/p')
+    local arch=$(uname -i)
+    local rhel=$(cat /etc/redhat-release | sed -n 's/.*\([0-9]\.[0-9]*\).*/\1/p')
     local kernel=$(uname -r)
     local supported=1
 
