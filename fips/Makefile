@@ -29,7 +29,7 @@ export TESTVERSION=1.0
 
 BUILT_FILES=
 
-FILES=$(METADATA) runtest.sh lib.sh Makefile rstrnt-package-workaround.sh
+FILES=$(METADATA) runtest.sh lib.sh Makefile
 
 .PHONY: all install download clean
 
