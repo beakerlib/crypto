@@ -66,23 +66,23 @@ function _workarounds {
 tmp_dir=$(mktemp -d)
 
 shift
-operation=$1
+operation=\$1
 shift
-packages=$*
+packages=\$*
 
-if [[ "$operation" == "remove" ]]; then
+if [[ "\$operation" == "remove" ]]; then
 
-    dnf remove -y $packages
+    dnf remove -y \$packages
 
-elif [[ "$operation" == "install" ]]; then
+elif [[ "\$operation" == "install" ]]; then
 
-    pushd $tmp_dir
-    dnf install --downloadonly -y --downloaddir . --skip-broken $packages
+    pushd \$tmp_dir
+    dnf install --downloadonly -y --downloaddir . --skip-broken \$packages
     rpm -Uhv --nodigest --nofiledigest --nodeps *.rpm
     popd
 fi
 
-rm -rf $tmp_dir
+rm -rf \$tmp_dir
 EOF
 
         rlRun "chmod a+x /usr/local/bin/rstrnt-package-workaround.sh" || return 1
