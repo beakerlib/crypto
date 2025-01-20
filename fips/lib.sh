@@ -310,7 +310,7 @@ function fipsIsEnabled {
             ret_val=1;
         fi
 
-    elif rlIsRHEL ">=10"; then
+    elif rlIsFedora || rlIsRHEL ">=10"; then
 
         # Since RHEL-10.0 there is no fips-mode-setup and hence there
         # is no $check_fips check.
@@ -324,22 +324,6 @@ function fipsIsEnabled {
             ret_val=1;
         fi
 
-    elif rlIsFedora; then
-
-        # Since Fedora-36 there is no /etc/system-fips and hence there is 
-        # no $userspace_fips check.
-        if [ "$kernelspace_fips" == "1" ] && \
-           [ "$cryptopolicy_fips" == "FIPS" ] && 
-           [ "$check_fips" == "FIPS mode is enabled." ] ; then
-            rlLog "FIPS mode is enabled"
-            ret_val=0
-        elif [ "$kernelspace_fips" == "0" ] && \
-             [ "$cryptopolicy_fips" != "FIPS" ] && \
-             [ "$check_fips" == "FIPS mode is disabled." ] ; then
-            rlLog "FIPS mode is disabled"
-            ret_val=1;
-        fi
-
     else
         rlLogError "Unsupported distro!"
     fi
@@ -347,18 +331,12 @@ function fipsIsEnabled {
     if [ $ret_val -eq 2 ]; then
         rlLog "FIPS mode is not correctly enabled!"
     fi
-    if [ $ret_val -ne 0 ]; then
-        rlLog "kernelspace fips mode = $kernelspace_fips"
-        if rlIsRHEL "<10"; then
-            rlLog "userspace fips mode = $userspace_fips"
-        fi
-        if rlIsFedora || rlIsRHEL ">=8"; then
-            rlLog "crypto policy = $cryptopolicy_fips"
-        fi
-        if rlIsFedora || rlIsRHEL "8" "9"; then
-            rlLog "fips-mode-setup --check = $check_fips"
-        fi
+    rlLog "kernelspace fips mode = $kernelspace_fips"
+    rlIsRHEL "<10" && rlLog "userspace fips mode = $userspace_fips"
+    if rlIsFedora || rlIsRHEL ">=8"; then
+        rlLog "crypto policy = $cryptopolicy_fips"
     fi
+    rlIsRHEL "8" "9" && rlLog "fips-mode-setup --check = $check_fips"
 
     return $ret_val
 }
@@ -379,21 +357,10 @@ Returns 0 if FIPS mode is supported, 1 if not.
 
 function fipsIsSupported {
 
-    local arch=$(uname -i)
-    local rhel=$(cat /etc/redhat-release | sed -n 's/.*\([0-9]\.[0-9]*\).*/\1/p')
-    local kernel=$(uname -r)
+    local arch="$(uname -m)"
     local supported=1
 
     rlLog "Checking FIPS 140 support"
-
-    # Check RHEL version.
-    if [[ $rhel =~ 7\. ]] && [[ $kernel =~ ^4\. ]]; then
-        rlLog "Product: RHEL-ALT-7"
-        rlLog "FIPS 140 is not supported in RHEL-ALT-7!"
-        supported=0
-    else
-        rlLog "Product: RHEL-${rhel}"
-    fi
 
     # Check HW architecture.
     rlLog "Architecture: $arch"
@@ -403,7 +370,7 @@ function fipsIsSupported {
     elif [[ $arch =~ s390 ]] && rlIsRHEL '<7.1'; then
         rlLog "FIPS 140 is not supported on s390x in RHEL older than 7.1!"
         supported=0
-    elif [[ $ARCH =~ aarch ]] && ! rlIsRHEL '>=8'; then
+    elif [[ $arch =~ aarch ]] && ! rlIsRHEL '>=8'; then
         rlLog "FIPS 140 is not supported on aarch64 in RHEL older than 8.0!"
         supported=0
     fi
