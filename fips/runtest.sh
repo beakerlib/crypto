@@ -63,8 +63,11 @@ rlJournalStart
             # Now, FIPS mode is enabled.
             rlRun "fipsIsEnabled" 0
 
-            # Packages can be installed.
+            # Packages can be installed and removed.
             rlRun "rstrnt-package install libreswan" 0
+            rlAssertRpm "libreswan"
+            rlRun "rstrnt-package remove libreswan" 0
+            rlAssertNotRpm "libreswan"
 
             rlRun "rm -f /var/tmp/fips-reboot" 0
 

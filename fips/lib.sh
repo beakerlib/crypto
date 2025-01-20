@@ -63,7 +63,7 @@ function _workarounds {
         cat >/usr/local/bin/rstrnt-package-workaround.sh<<EOF
 #!/bin/bash
 
-tmp_dir=$(mktemp -d)
+tmp_dir=\$(mktemp -d)
 
 shift
 operation=\$1
