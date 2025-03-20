@@ -135,12 +135,12 @@ function _enforceModulusBits {
 
 function _enableFIPS {
 
-    if rlIsRHEL ">=10"; then
+    if rlIsRHEL ">=10" || rlIsFedora ">=42"; then
 
         # Since RHEL-10.0 there is no fips-mode-setup anymore (RHEL-65652).
         rlRun "update-crypto-policies --set FIPS" 0 "Enable FIPS policy" || return 1
 
-    elif rlIsFedora || rlIsRHEL ">=8"; then
+    elif rlIsFedora "<42" || rlIsRHEL ">=8"; then
 
         # Use crypto-policies to set-up FIPS 140 mode.
         rlRun "FIPS_MODE_SETUP_SKIP_WARNING=1 fips-mode-setup --enable" 0 "Enable FIPS 140 mode" || return 1
@@ -180,7 +180,7 @@ function _enableFIPS {
 function _modifyBootloader {
 
     # On Fedora, RHEL-8 and RHEL-9, fips-mode-setup binary modifies bootloader.
-    if rlIsFedora || rlIsRHEL "8" "9"; then
+    if rlIsFedora "<42" || rlIsRHEL "8" "9"; then
         return 0
     fi
 
@@ -266,7 +266,7 @@ function fipsIsEnabled {
     local check_fips=""
     if [ -e /proc/sys/crypto/fips_enabled ]; then
         kernelspace_fips=$(cat /proc/sys/crypto/fips_enabled)
-        if rlIsFedora || rlIsRHEL "8" "9"; then
+        if rlIsFedora "<42" || rlIsRHEL "8" "9"; then
             check_fips=$(fips-mode-setup --check | grep "FIPS mode")
         fi
     fi
@@ -440,13 +440,13 @@ function fipsLibraryLoaded {
 
     # In Fedora, fips-mode-setup is separate package, but cannot 
     # be installed via fips library dependecies.
-    if rlIsFedora && ! which fips-mode-setup >/dev/null 2>&1; then
+    if rlIsFedora "<42" && ! which fips-mode-setup >/dev/null 2>&1; then
         rlLog "Installing Missing fips-mode-setup package"
         rlRun "dnf install fips-mode-setup -y" 
     fi
 
     # In RHEL 8.3+ and Fedora, scripts are in crypto-policies-scripts
-    if rlIsFedora || rlIsRHEL "8" "9" && (
+    if rlIsFedora "<42" || rlIsRHEL "8" "9" && (
             ! command -v fips-mode-setup >/dev/null 2>&1 ||
             ! command -v update-crypto-policies >/dev/null 2>&1); then
         rlLog "Installing missing crypto-policies-scripts package"
