@@ -438,17 +438,14 @@ fully enabled) FIPS 140 mode will produce an error.
 =cut
 function fipsLibraryLoaded {
 
-    # In Fedora, fips-mode-setup is separate package, but cannot 
+    # In Fedora <42, fips-mode-setup is a separate package, but cannot 
     # be installed via fips library dependecies.
-    if rlIsFedora "<42" && ! which fips-mode-setup >/dev/null 2>&1; then
+    if rlIsFedora "<42" && ! command -v fips-mode-setup >/dev/null 2>&1; then
         rlLog "Installing Missing fips-mode-setup package"
         rlRun "dnf install fips-mode-setup -y" 
     fi
 
-    # In RHEL 8.3+ and Fedora, scripts are in crypto-policies-scripts
-    if rlIsFedora "<42" || rlIsRHEL "8" "9" && (
-            ! command -v fips-mode-setup >/dev/null 2>&1 ||
-            ! command -v update-crypto-policies >/dev/null 2>&1); then
+    if ! command -v update-crypto-policies >/dev/null 2>&1; then
         rlLog "Installing missing crypto-policies-scripts package"
         rlRun "dnf install crypto-policies-scripts -y --skip-broken"
     fi
