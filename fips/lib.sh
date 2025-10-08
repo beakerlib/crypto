@@ -324,6 +324,10 @@ function fipsIsEnabled {
             ret_val=1;
         fi
 
+    elif rlIsOS "ubuntu"; then
+
+            ret_val=1
+
     else
         rlLogError "Unsupported distro!"
     fi
