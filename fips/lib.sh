@@ -449,7 +449,7 @@ function fipsLibraryLoaded {
         rlRun "dnf install fips-mode-setup -y" 
     fi
 
-    if ! command -v update-crypto-policies >/dev/null 2>&1; then
+    if ! rlIsRHEL '<8' && ! command -v update-crypto-policies >/dev/null 2>&1; then
         rlLog "Installing missing crypto-policies-scripts package"
         rlRun "dnf install crypto-policies-scripts -y --skip-broken"
     fi
