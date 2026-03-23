@@ -53,13 +53,13 @@ function _workarounds {
 
     # On RHEL-8, rpm cannot verify digests of rpms using MD5 digest in FIPS 140.
     # Unfortunately, older test rpms are do not have neither SHA1 nor SHA256 and
-    # hence cannot be installed. Test installation si done by restraint and we 
+    # hence cannot be installed. Test installation si done by restraint and we
     # have to workaround it not to check digests.
     #
     # We can only use the workaround on systems with restraint.
     if rlIsRHEL ">=8" && rlCheckRpm "restraint"; then
 
-        rlLog "Apply workaround for installation test rpms with MD5 digest" 
+        rlLog "Apply workaround for installation test rpms with MD5 digest"
         cat >/usr/local/bin/rstrnt-package-workaround.sh<<EOF
 #!/bin/bash
 
@@ -185,10 +185,10 @@ function _modifyBootloader {
     fi
 
     # On RHEL-6, RHEL-7 and RHEL-10 there is no fips-mode-setup.
-	boot_device="$(stat -c %d:%m /boot)"
-	root_device="$(stat -c %d:%m /)"
-	boot_device_opt=""
-	if [ "$boot_device" != "$root_device" ]; then
+    boot_device="$(stat -c %d:%m /boot)"
+    root_device="$(stat -c %d:%m /)"
+    boot_device_opt=""
+    if [ "$boot_device" != "$root_device" ]; then
         # Trigger autofs if boot is mounted by automount.boot.
         pushd /boot >/dev/null 2>&1 && popd
         FINDMNT_UUID="findmnt --first-only -t noautofs --noheadings --output uuid"
@@ -214,6 +214,25 @@ function _modifyBootloader {
     return 0
 }
 
+function _extractOpensslProvider {
+    openssl list -providers > /tmp/openssl-providers
+
+    if grep -wq "Red Hat Enterprise Linux FIPS Provider" /tmp/openssl-providers; then
+        rlAssertRpm "fips-provider-next"
+        fipsOpenSSLProvider="kryoptic"
+    elif grep -Ewq "Red Hat Enterprise Linux.*OpenSSL FIPS Provider" /tmp/openssl-providers; then
+        rlAssertRpm "openssl-fips-provider"
+        fipsOpenSSLProvider="openssl-fips-provider"
+    else
+        rlLogError "Could not determine the OpenSSL FIPS provider used."
+        fipsOpenSSLProvider="undefined"
+    fi
+
+    rlLogInfo "Used FIPS provider: ${fipsOpenSSLProvider}"
+
+    rm -f /tmp/openssl-providers
+}
+
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #   Functions and Variables
@@ -227,6 +246,10 @@ true <<'=cut'
 =head2 fipsMode
 
 This variable holds state of FIPS mode at the time when library is loaded.
+
+=head2 fipsOpenSSLProvider
+
+This variable holds the name of the OpenSSL provider used for FIPS mode.
 
 =over
 
@@ -442,11 +465,11 @@ fully enabled) FIPS 140 mode will produce an error.
 =cut
 function fipsLibraryLoaded {
 
-    # In Fedora <42, fips-mode-setup is a separate package, but cannot 
+    # In Fedora <42, fips-mode-setup is a separate package, but cannot
     # be installed via fips library dependecies.
     if rlIsFedora "<42" && ! command -v fips-mode-setup >/dev/null 2>&1; then
         rlLog "Installing Missing fips-mode-setup package"
-        rlRun "dnf install fips-mode-setup -y" 
+        rlRun "dnf install fips-mode-setup -y"
     fi
 
     if ! rlIsRHEL '<8' && ! command -v update-crypto-policies >/dev/null 2>&1; then
@@ -454,15 +477,18 @@ function fipsLibraryLoaded {
         rlRun "dnf install crypto-policies-scripts -y --skip-broken"
     fi
 
-    fipsIsEnabled 
+    fipsIsEnabled
     ret=$?
-    
+
     if [ $ret == 0 ]; then
         fipsMode="enabled"
+        _extractOpensslProvider
     elif [ $ret == 1 ]; then
         fipsMode="disabled"
+        fipsOpenSSLProvider="undefined"
     else
         fipsMode="error"
+        fipsOpenSSLProvider="undefined"
         rlFail "FIPS mode is already misconfigured, see above!"
     fi
 

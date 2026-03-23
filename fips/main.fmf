@@ -8,6 +8,7 @@ recommend:
     - crypto-policies-scripts
     - fips-mode-setup
     - grubby
+    - openssl
 duration: 30m
 enabled: true
 extra-summary: '[fips] a set of helpers for FIPS 140 testing (distribution/fips)'
