@@ -482,7 +482,7 @@ function fipsLibraryLoaded {
 
     if [ $ret == 0 ]; then
         fipsMode="enabled"
-        if ! rlIsRHEL '<8.10'; then
+        if ! rlIsRHEL '<9'; then
             _extractOpensslProvider
         else
             fipsOpenSSLProvider="N/A"
