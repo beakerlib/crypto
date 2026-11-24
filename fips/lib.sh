@@ -217,7 +217,7 @@ function _modifyBootloader {
 function _extractOpensslProvider {
     openssl list -providers > /tmp/openssl-providers
 
-    if grep -wq "Red Hat Enterprise Linux FIPS Provider" /tmp/openssl-providers; then
+    if grep -wq "Red Hat Enterprise Linux FIPS Provider" /tmp/openssl-providers || grep -wq "Red Hat FIPS Module" /tmp/openssl-providers; then
         rlAssertRpm "fips-provider-next"
         fipsOpenSSLProvider="kryoptic"
     elif grep -Ewq "Red Hat Enterprise Linux.*OpenSSL FIPS Provider" /tmp/openssl-providers; then
