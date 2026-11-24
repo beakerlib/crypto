@@ -44,15 +44,15 @@ rlJournalStart
 
                 # Initially, FIPS mode is disabled.
                 rlRun "fipsIsEnabled" 1
-                
+
                 # Enable it.
                 rlRun "fipsEnable" 0
-                
+
                 # Before completing setup by restart, system is misconfigured.
                 rlRun "fipsIsEnabled" 2
-                
+
                 rlRun "touch /var/tmp/fips-reboot" 0
-                
+
             rlPhaseEnd
 
             rhts-reboot
@@ -73,7 +73,7 @@ rlJournalStart
 
         rlPhaseEnd
     fi
-    
+
     rlPhaseStartCleanup
     rlPhaseEnd
 rlJournalPrintText
